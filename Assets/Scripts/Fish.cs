@@ -32,6 +32,15 @@ public class Fish : MonoBehaviour
     [Header("受驚嚇效果")]
     [SerializeField] private float scaredSpeedMultiplier = 3.0f; // 受驚時的速度倍數
     [SerializeField] private float scaredDuration = 1.5f; // 受驚持續時間（秒）
+    [SerializeField] private bool enableTailWag = true; // 是否啟用尾巴擺動
+    [SerializeField] private float tailAmplitude = 0.02f; // 尾擺幅度
+    [SerializeField] private float tailSpeed = 2.0f; // 尾擺速度
+    
+    [Header("自然游泳設定")]
+    [SerializeField] private float verticalDriftLimit = 0.15f; // 垂直移動限制（越小越水平）
+    [SerializeField] private float directionSmoothTime = 1.5f; // 方向平滑過渡時間
+    [SerializeField] private float bobbingAmplitude = 0.1f; // 上下浮動振幅
+    [SerializeField] private float bobbingSpeed = 1.5f; // 上下浮動速度
     
     [Header("調試設定")]
     [SerializeField] private bool enableDebug = true;
@@ -44,9 +53,11 @@ public class Fish : MonoBehaviour
     
     // 移動相關
     private Vector3 moveDirection;
+    private Vector3 targetDirection; // 目標方向（用於平滑過渡）
     private float nextDirectionChangeTime = 0f;
     private bool isScared = false; // 是否處於受驚狀態
     private float scaredEndTime = 0f; // 受驚結束時間
+    private float bobbingPhase; // 上下浮動相位（每條魚不同）
     
     private void Start()
     {
@@ -64,7 +75,11 @@ public class Fish : MonoBehaviour
         if (enableMovement)
         {
             ChangeDirection();
+            moveDirection = targetDirection; // 初始時直接使用目標方向
+            bobbingPhase = Random.Range(0f, Mathf.PI * 2f); // 隨機相位讓每條魚浮動不同步
         }
+
+
     }
     
     private void Update()
@@ -101,7 +116,14 @@ public class Fish : MonoBehaviour
         if (!isScared && Time.time >= nextDirectionChangeTime)
         {
             ChangeDirection();
-            nextDirectionChangeTime = Time.time + changeDirectionTime;
+            nextDirectionChangeTime = Time.time + changeDirectionTime + Random.Range(-0.5f, 0.5f);
+        }
+        
+        // 平滑過渡到目標方向（自然轉彎）
+        if (!isScared)
+        {
+            moveDirection = Vector3.Lerp(moveDirection, targetDirection, Time.deltaTime / directionSmoothTime);
+            moveDirection.Normalize();
         }
         
         // 使用 Rigidbody.MovePosition 來移動（防止穿牆）
@@ -111,13 +133,23 @@ public class Fish : MonoBehaviour
         // 計算當前速度（受驚時加速）
         float currentSpeed = isScared ? moveSpeed * scaredSpeedMultiplier : moveSpeed;
         
+        // 計算基本移動
+        Vector3 movement = moveDirection * currentSpeed * Time.deltaTime;
+        
+        // 添加自然的上下浮動（受驚時減弱）
+        if (!isScared)
+        {
+            float bobbing = Mathf.Sin(Time.time * bobbingSpeed + bobbingPhase) * bobbingAmplitude * Time.deltaTime;
+            movement.y += bobbing;
+        }
+        
         if (rb != null && rb.isKinematic)
         {
-            newPosition = rb.position + moveDirection * currentSpeed * Time.deltaTime;
+            newPosition = rb.position + movement;
         }
         else
         {
-            newPosition = transform.position + moveDirection * currentSpeed * Time.deltaTime;
+            newPosition = transform.position + movement;
         }
         
         // 檢查邊界並反彈（使用緩衝區避免抖動）
@@ -131,6 +163,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.x < 0)
             {
                 moveDirection.x = -moveDirection.x;
+                targetDirection.x = Mathf.Abs(targetDirection.x);
                 bounced = true;
             }
         }
@@ -140,6 +173,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.x > 0)
             {
                 moveDirection.x = -moveDirection.x;
+                targetDirection.x = -Mathf.Abs(targetDirection.x);
                 bounced = true;
             }
         }
@@ -151,6 +185,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.y < 0)
             {
                 moveDirection.y = -moveDirection.y;
+                targetDirection.y = Mathf.Abs(targetDirection.y);
                 bounced = true;
             }
         }
@@ -160,6 +195,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.y > 0)
             {
                 moveDirection.y = -moveDirection.y;
+                targetDirection.y = -Mathf.Abs(targetDirection.y);
                 bounced = true;
             }
         }
@@ -171,6 +207,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.z < 0)
             {
                 moveDirection.z = -moveDirection.z;
+                targetDirection.z = Mathf.Abs(targetDirection.z);
                 bounced = true;
             }
         }
@@ -180,6 +217,7 @@ public class Fish : MonoBehaviour
             if (moveDirection.z > 0)
             {
                 moveDirection.z = -moveDirection.z;
+                targetDirection.z = -Mathf.Abs(targetDirection.z);
                 bounced = true;
             }
         }
@@ -194,50 +232,63 @@ public class Fish : MonoBehaviour
             transform.position = newPosition;
         }
         
-        // 讓魚頭朝向移動方向
+        // 讓魚頭朝向移動方向（使用水平方向為主）
         if (moveDirection != Vector3.zero)
         {
-            // 反轉移動方向來計算旋轉（因為要魚頭朝前，不是尾巴）
-            Vector3 lookDirection = -moveDirection; // 關鍵：反轉方向
-            Quaternion baseRotation = Quaternion.LookRotation(lookDirection);
+            // 計算水平移動方向（用於旋轉）
+            Vector3 horizontalDir = new Vector3(moveDirection.x, 0, moveDirection.z);
+            if (horizontalDir.sqrMagnitude < 0.001f)
+            {
+                horizontalDir = transform.forward;
+            }
+            horizontalDir.Normalize();
+            
+            // 計算目標旋轉（魚頭朝向移動方向）
+            // 注意：使用正向 horizontalDir，配合 forwardOffset 來調整模型朝向
+            Quaternion baseRotation = Quaternion.LookRotation(horizontalDir);
             Quaternion offsetRotation = Quaternion.Euler(forwardOffset);
             Quaternion targetRotation = baseRotation * offsetRotation;
             
-            // 限制X和Z軸的旋轉角度
-            Vector3 eulerAngles = targetRotation.eulerAngles;
+            // 根據垂直移動添加輕微俯仰角
+            float pitchAngle = moveDirection.y * maxTiltAngle * 0.5f;
+            pitchAngle = Mathf.Clamp(pitchAngle, -maxTiltAngle, maxTiltAngle);
             
-            // 將角度轉換為 -180 到 180 的範圍
-            float xAngle = eulerAngles.x > 180 ? eulerAngles.x - 360 : eulerAngles.x;
-            float zAngle = eulerAngles.z > 180 ? eulerAngles.z - 360 : eulerAngles.z;
+            // 添加輕微的搖擺感
+            float rollAngle = Mathf.Sin(Time.time * 2f + bobbingPhase) * 3f;
             
-            // 限制X和Z軸角度在 ±maxTiltAngle 範圍內
-            xAngle = Mathf.Clamp(xAngle, -maxTiltAngle, maxTiltAngle);
-            zAngle = Mathf.Clamp(zAngle, -maxTiltAngle, maxTiltAngle);
+            // 套用俯仰和搖擺
+            Vector3 finalEuler = targetRotation.eulerAngles;
+            finalEuler.x = pitchAngle;
+            finalEuler.z = rollAngle;
+            targetRotation = Quaternion.Euler(finalEuler);
             
-            // 重建旋轉（Y軸不限制，保持原本的轉向）
-            targetRotation = Quaternion.Euler(xAngle, eulerAngles.y, zAngle);
-            
+            // 平滑旋轉
+            float smoothRotSpeed = isScared ? rotationSpeed * 2f : rotationSpeed;
             if (rb != null && rb.isKinematic)
             {
-                rb.MoveRotation(Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed));
+                rb.MoveRotation(Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothRotSpeed));
             }
             else
             {
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothRotSpeed);
             }
         }
     }
     
     /// <summary>
-    /// 改變移動方向
+    /// 改變移動方向（生成新的目標方向）
     /// </summary>
     private void ChangeDirection()
     {
-        moveDirection = new Vector3(
-            Random.Range(-1f, 1f),
-            Random.Range(-1f, 1f),
-            Random.Range(-1f, 1f)
-        ).normalized;
+        // 水平方向隨機（主要移動方向）
+        float horizontalAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+        float xDir = Mathf.Cos(horizontalAngle);
+        float zDir = Mathf.Sin(horizontalAngle);
+        
+        // 垂直方向限制（魚主要水平游泳，偶爾輕微上下）
+        float yDir = Random.Range(-verticalDriftLimit, verticalDriftLimit);
+        
+        targetDirection = new Vector3(xDir, yDir, zDir).normalized;
     }
     
     private void ValidateSetup()
@@ -254,8 +305,17 @@ public class Fish : MonoBehaviour
         // 檢查是否碰到邊界 - 反彈回來
         if (other.CompareTag(boundTag))
         {
-            // 反轉移動方向
+            // 反轉移動方向和目標方向
             moveDirection = -moveDirection;
+            targetDirection = moveDirection;
+        }
+        // 檢查是否碰到其他魚 - 隨機轉向
+        else if (other.CompareTag("Fish"))
+        {
+            ChangeDirection();
+            // 立即更新移動方向以避免持續碰撞
+            moveDirection = Vector3.Lerp(moveDirection, targetDirection, 0.3f);
+            moveDirection.Normalize();
         }
         // 檢查是否是手（透過 Tag）
         else if (other.CompareTag(handTag))
@@ -270,8 +330,17 @@ public class Fish : MonoBehaviour
         // 檢查是否碰到邊界 - 反彈回來
         if (collision.gameObject.CompareTag(boundTag))
         {
-            // 反轉移動方向
+            // 反轉移動方向和目標方向
             moveDirection = -moveDirection;
+            targetDirection = moveDirection;
+        }
+        // 檢查是否碰到其他魚 - 隨機轉向
+        else if (collision.gameObject.CompareTag("Fish"))
+        {
+            ChangeDirection();
+            // 立即更新移動方向以避免持續碰撞
+            moveDirection = Vector3.Lerp(moveDirection, targetDirection, 0.3f);
+            moveDirection.Normalize();
         }
         // 檢查是否是手（透過 Tag）
         else if (collision.gameObject.CompareTag(handTag))
@@ -285,6 +354,15 @@ public class Fish : MonoBehaviour
     /// </summary>
     public void OnTouched()
     {
+        // 如果手部模型處於隱藏狀態，忽略此觸碰（不加分）
+        if (!HandCollisionDetector.IsHandVisible)
+        {
+            if (enableDebug)
+            {
+                Debug.Log($" {gameObject.name} 忽略碰觸：手部模型目前為 off");
+            }
+            return;
+        }
         // 檢查冷卻時間
         if (Time.time - lastScoreTime < scoreCooldown)
         {

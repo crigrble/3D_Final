@@ -45,6 +45,8 @@ public class HandCollisionDetector : MonoBehaviour
     private float lastDataTime = 0f;
     private float lastHandDetectedTime = 0f;
     private bool isHandVisible = false;
+    // Public static accessor other scripts can query to know whether the hand model is shown
+    public static bool IsHandVisible { get; private set; } = false;
     
     // 儲存 21 個 Landmark 的世界座標
     private Vector3[] landmarkWorldPositions = new Vector3[21];
@@ -116,6 +118,8 @@ public class HandCollisionDetector : MonoBehaviour
                 isHandVisible = shouldBeVisible;
                 handRenderer.enabled = isHandVisible;
             }
+            // Keep static accessor in sync for other scripts like Fish
+            IsHandVisible = isHandVisible;
         }
         
         // 檢測是否持續接收數據
