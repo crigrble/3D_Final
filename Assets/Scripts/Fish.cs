@@ -1,412 +1,340 @@
 using UnityEngine;
 
 /// <summary>
-/// 魚的碰撞偵測腳本
-/// 掛載在每條魚的物件上
+/// 魚的碰撞偵測腳本 (最終完美版)
+/// 修正：
+/// 1. 加入「初始位置自動適應」：魚會從您擺放的地方開始游，不會再被強制傳送
+/// 2. 移除互斥力，保持單純隨機轉向
+/// 3. 保留所有自然游動優化
 /// </summary>
 public class Fish : MonoBehaviour
 {
-    [Header("魚的屬性")]
-    [SerializeField] private int scoreValue = 10; // 碰到這條魚的分數
-    [SerializeField] private string handTag = "Hand"; // 手的 Tag
-    
-    [Header("視覺效果")]
-    [SerializeField] private Color touchColor = Color.yellow; // 被碰到時的顏色
-    [SerializeField] private float colorDuration = 0.3f; // 顏色持續時間
-    
-    [Header("加分冷卻")]
-    [SerializeField] private float scoreCooldown = 1.0f; // 加分冷卻時間（秒）
-    
+    [Header("🐟 縮放設定")]
+    [Tooltip("世界縮放比例 (例如 0.062)。這只會影響「速度」和「物理力道」，不會再縮小您的邊界框。")]
+    [SerializeField] private float worldScale = 0.062f;
+
+    [Header("基礎屬性")]
+    [SerializeField] private int scoreValue = 10;
+    [SerializeField] private string handTag = "Hand";
+    [SerializeField] private Color touchColor = Color.yellow;
+    [SerializeField] private float colorDuration = 0.3f;
+    [SerializeField] private float scoreCooldown = 1.0f;
+
     [Header("移動設定")]
-    [SerializeField] private bool enableMovement = true; // 啟用隨機移動
-    [SerializeField] private float moveSpeed = 2.0f; // 移動速度
-    [SerializeField] private float changeDirectionTime = 3.0f; // 改變方向的時間間隔
-    [SerializeField] private float rotationSpeed = 5.0f; // 旋轉速度
-    [SerializeField] private string boundTag = "Bound"; // 邊界的 Tag
-    [SerializeField] private Vector3 forwardOffset = new Vector3(0, 180, 0); // 魚的前進方向偏移（預設180度因為模型尾巴朝前）
-    [SerializeField] private Vector3 minBounds = new Vector3(-10f, -5f, -10f); // 邊界最小值
-    [SerializeField] private Vector3 maxBounds = new Vector3(10f, 5f, 10f); // 邊界最大值
-    [SerializeField] private float boundaryBuffer = 0.5f; // 邊界緩衝區，避免卡在邊界抖動
-    [SerializeField] private float maxTiltAngle = 15f; // X和Z軸最大傾斜角度
-    
+    [SerializeField] private bool enableMovement = true;
+
+    [Tooltip("標準巡航速度")]
+    [SerializeField] private float baseMoveSpeed = 2.5f;
+
+    [Tooltip("轉彎靈敏度 (數值越小，轉彎半徑越大，看起來越自然)")]
+    [SerializeField] private float turnSpeed = 0.6f;
+
+    [Tooltip("改變方向的頻率 (秒)")]
+    [SerializeField] private float changeDirectionInterval = 3.0f;
+
+    [Header("游泳範圍 (絕對 Local 座標)")]
+    [Tooltip("請拖入魚缸中心點 (Empty Object)")]
+    [SerializeField] private Transform swimAnchor;
+
+    [Tooltip("紅框的最小角落 (請看 Scene 視窗調整)")]
+    [SerializeField] private Vector3 minBounds = new Vector3(-5f, -2f, -5f);
+
+    [Tooltip("紅框的最大角落 (請看 Scene 視窗調整)")]
+    [SerializeField] private Vector3 maxBounds = new Vector3(5f, 2f, 5f);
+
+    [Tooltip("碰到牆壁前的緩衝距離")]
+    [SerializeField] private float boundaryBuffer = 0.1f;
+
+    [Header("自然感細節")]
+    [SerializeField] private Vector3 forwardOffset = new Vector3(0, 180, 0);
+    [SerializeField] private bool enableSpeedVariation = true;
+    [SerializeField] private float maxTiltAngle = 8f;
+
     [Header("受驚嚇效果")]
-    [SerializeField] private float scaredSpeedMultiplier = 3.0f; // 受驚時的速度倍數
-    [SerializeField] private float scaredDuration = 1.5f; // 受驚持續時間（秒）
-    [SerializeField] private bool enableTailWag = true; // 是否啟用尾巴擺動
-    [SerializeField] private float tailAmplitude = 0.02f; // 尾擺幅度
-    [SerializeField] private float tailSpeed = 2.0f; // 尾擺速度
-    
-    [Header("自然游泳設定")]
-    [SerializeField] private float verticalDriftLimit = 0.15f; // 垂直移動限制（越小越水平）
-    [SerializeField] private float directionSmoothTime = 1.5f; // 方向平滑過渡時間
-    [SerializeField] private float bobbingAmplitude = 0.1f; // 上下浮動振幅
-    [SerializeField] private float bobbingSpeed = 1.5f; // 上下浮動速度
-    
+    [SerializeField] private float scaredSpeedMultiplier = 2.5f;
+    [SerializeField] private float scaredDuration = 1.5f;
+
     [Header("調試設定")]
     [SerializeField] private bool enableDebug = true;
-    
+
+    // --- 內部變數 ---
     private Renderer fishRenderer;
     private Color originalColor;
     private float touchTime = -1f;
     private bool isTouched = false;
-    private float lastScoreTime = -999f; // 上次加分的時間
-    
-    // 移動相關
-    private Vector3 moveDirection;
-    private Vector3 targetDirection; // 目標方向（用於平滑過渡）
-    private float nextDirectionChangeTime = 0f;
-    private bool isScared = false; // 是否處於受驚狀態
-    private float scaredEndTime = 0f; // 受驚結束時間
-    private float bobbingPhase; // 上下浮動相位（每條魚不同）
-    
+    private float lastScoreTime = -999f;
+
+    private Vector3 currentVelocity;
+    private Vector3 targetDirection;
+    private float nextChangeTime = 0f;
+    private bool isScared = false;
+    private float scaredEndTime = 0f;
+    private float speedOffset;
+
     private void Start()
     {
-        // 獲取 Renderer
         fishRenderer = GetComponent<Renderer>();
-        if (fishRenderer != null)
+        if (fishRenderer != null) originalColor = fishRenderer.material.color;
+
+        if (swimAnchor == null)
         {
-            originalColor = fishRenderer.material.color;
-        }
-        
-        // 驗證設定
-        ValidateSetup();
-        
-        // 初始化隨機移動方向
-        if (enableMovement)
-        {
-            ChangeDirection();
-            moveDirection = targetDirection; // 初始時直接使用目標方向
-            bobbingPhase = Random.Range(0f, Mathf.PI * 2f); // 隨機相位讓每條魚浮動不同步
+            swimAnchor = transform.parent != null ? transform.parent : transform;
         }
 
+        // --- 關鍵修正：自動調整邊界以包含初始位置 ---
+        // 防止魚一開始就因為超出範圍被強制傳送
+        Vector3 startLocalPos = swimAnchor.InverseTransformPoint(transform.position);
+        bool boundsAdjusted = false;
 
+        // X 軸檢查與擴展
+        if (startLocalPos.x < minBounds.x + boundaryBuffer) { minBounds.x = startLocalPos.x - boundaryBuffer - 0.1f; boundsAdjusted = true; }
+        if (startLocalPos.x > maxBounds.x - boundaryBuffer) { maxBounds.x = startLocalPos.x + boundaryBuffer + 0.1f; boundsAdjusted = true; }
+
+        // Y 軸檢查與擴展
+        if (startLocalPos.y < minBounds.y + boundaryBuffer) { minBounds.y = startLocalPos.y - boundaryBuffer - 0.1f; boundsAdjusted = true; }
+        if (startLocalPos.y > maxBounds.y - boundaryBuffer) { maxBounds.y = startLocalPos.y + boundaryBuffer + 0.1f; boundsAdjusted = true; }
+
+        // Z 軸檢查與擴展
+        if (startLocalPos.z < minBounds.z + boundaryBuffer) { minBounds.z = startLocalPos.z - boundaryBuffer - 0.1f; boundsAdjusted = true; }
+        if (startLocalPos.z > maxBounds.z - boundaryBuffer) { maxBounds.z = startLocalPos.z + boundaryBuffer + 0.1f; boundsAdjusted = true; }
+
+        if (boundsAdjusted && enableDebug)
+        {
+            Debug.Log($"📏 {gameObject.name} 初始位置在邊界外，已自動擴展游泳範圍以包含初始點。");
+        }
+        // ---------------------------------------------
+
+        // 1. 初始化隨機參數
+        speedOffset = Random.Range(0f, 100f);
+
+        // 2. 隨機初始方向
+        ChangeTargetDirection();
+
+        // 3. 錯開轉向時間
+        nextChangeTime = Time.time + Random.Range(0f, changeDirectionInterval);
+
+        // 4. 初始速度
+        if (currentVelocity == Vector3.zero)
+        {
+            currentVelocity = transform.forward * baseMoveSpeed * worldScale;
+        }
     }
-    
+
     private void Update()
     {
-        // 隨機移動
-        if (enableMovement)
-        {
-            MoveRandomly();
-        }
-        
-        // 恢復原始顏色
+        if (enableMovement) HandleMovement();
+
         if (isTouched && Time.time - touchTime > colorDuration)
         {
             isTouched = false;
-            if (fishRenderer != null)
+            if (fishRenderer != null) fishRenderer.material.color = originalColor;
+        }
+    }
+
+    private void HandleMovement()
+    {
+        float dt = Time.deltaTime;
+
+        if (isScared && Time.time >= scaredEndTime) isScared = false;
+
+        // 定時改變目標方向
+        if (!isScared && Time.time >= nextChangeTime)
+        {
+            ChangeTargetDirection();
+            nextChangeTime = Time.time + changeDirectionInterval + Random.Range(-1.0f, 1.0f);
+        }
+
+        // 計算目標速度
+        float targetSpeed = baseMoveSpeed * worldScale;
+        if (isScared) targetSpeed *= scaredSpeedMultiplier;
+
+        if (enableSpeedVariation && !isScared)
+        {
+            float wave = Mathf.Sin(Time.time * 3f + speedOffset);
+            targetSpeed *= (1.0f + wave * 0.2f);
+        }
+
+        Vector3 desiredVelocity = targetDirection * targetSpeed;
+
+        // 慣性轉向
+        float steerRate = turnSpeed;
+        if (isScared) steerRate *= 2f;
+
+        currentVelocity = Vector3.Lerp(currentVelocity, desiredVelocity, dt * steerRate);
+
+        // 防止速度過低
+        if (currentVelocity.sqrMagnitude < 0.0001f)
+        {
+            currentVelocity = Random.onUnitSphere * targetSpeed * 0.1f;
+        }
+
+        // 計算位移
+        Vector3 nextPos = transform.position + currentVelocity * dt;
+
+        // 邊界檢查
+        Vector3 localPos = swimAnchor.InverseTransformPoint(nextPos);
+        bool hitBound = CheckBounds(ref localPos, ref currentVelocity);
+
+        if (hitBound)
+        {
+            targetDirection = currentVelocity.normalized;
+        }
+
+        // 應用位置
+        Vector3 finalWorldPos = swimAnchor.TransformPoint(localPos);
+        transform.position = finalWorldPos;
+
+        // 旋轉
+        if (currentVelocity.sqrMagnitude > 0.0001f)
+        {
+            Vector3 horizontalDir = currentVelocity;
+            horizontalDir.y *= 0.5f;
+
+            if (horizontalDir.sqrMagnitude > 0.0001f)
             {
-                fishRenderer.material.color = originalColor;
+                Quaternion targetRot = Quaternion.LookRotation(horizontalDir.normalized) * Quaternion.Euler(forwardOffset);
+
+                float turnBanking = -Vector3.SignedAngle(transform.forward, currentVelocity.normalized, Vector3.up);
+                turnBanking = Mathf.Clamp(turnBanking, -maxTiltAngle, maxTiltAngle);
+
+                float pitch = -currentVelocity.y * 200f * worldScale;
+                pitch = Mathf.Clamp(pitch, -maxTiltAngle, maxTiltAngle);
+
+                Quaternion tiltRot = Quaternion.Euler(pitch, 0, turnBanking);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot * tiltRot, dt * turnSpeed);
             }
         }
     }
-    
-    /// <summary>
-    /// 隨機移動魚
-    /// </summary>
-    private void MoveRandomly()
+
+    // 檢查邊界
+    private bool CheckBounds(ref Vector3 localPos, ref Vector3 velocity)
     {
-        // 檢查受驚狀態是否結束
-        if (isScared && Time.time >= scaredEndTime)
+        bool hit = false;
+
+        float minX = minBounds.x;
+        float maxX = maxBounds.x;
+        float minY = minBounds.y;
+        float maxY = maxBounds.y;
+        float minZ = minBounds.z;
+        float maxZ = maxBounds.z;
+        float buffer = boundaryBuffer;
+
+        Vector3 localVel = swimAnchor.InverseTransformDirection(velocity);
+
+        // X 軸
+        if (localPos.x < minX + buffer)
         {
-            isScared = false;
+            localPos.x = minX + buffer;
+            if (localVel.x < 0) localVel.x *= -1;
+            hit = true;
         }
-        
-        // 檢查是否需要改變方向（受驚時不改變方向）
-        if (!isScared && Time.time >= nextDirectionChangeTime)
+        else if (localPos.x > maxX - buffer)
         {
-            ChangeDirection();
-            nextDirectionChangeTime = Time.time + changeDirectionTime + Random.Range(-0.5f, 0.5f);
+            localPos.x = maxX - buffer;
+            if (localVel.x > 0) localVel.x *= -1;
+            hit = true;
         }
-        
-        // 平滑過渡到目標方向（自然轉彎）
-        if (!isScared)
+
+        // Y 軸
+        if (localPos.y < minY + buffer)
         {
-            moveDirection = Vector3.Lerp(moveDirection, targetDirection, Time.deltaTime / directionSmoothTime);
-            moveDirection.Normalize();
+            localPos.y = minY + buffer;
+            if (localVel.y < 0) localVel.y *= -1;
+            hit = true;
         }
-        
-        // 使用 Rigidbody.MovePosition 來移動（防止穿牆）
-        Rigidbody rb = GetComponent<Rigidbody>();
-        Vector3 newPosition;
-        
-        // 計算當前速度（受驚時加速）
-        float currentSpeed = isScared ? moveSpeed * scaredSpeedMultiplier : moveSpeed;
-        
-        // 計算基本移動
-        Vector3 movement = moveDirection * currentSpeed * Time.deltaTime;
-        
-        // 添加自然的上下浮動（受驚時減弱）
-        if (!isScared)
+        else if (localPos.y > maxY - buffer)
         {
-            float bobbing = Mathf.Sin(Time.time * bobbingSpeed + bobbingPhase) * bobbingAmplitude * Time.deltaTime;
-            movement.y += bobbing;
+            localPos.y = maxY - buffer;
+            if (localVel.y > 0) localVel.y *= -1;
+            hit = true;
         }
-        
-        if (rb != null && rb.isKinematic)
+
+        // Z 軸
+        if (localPos.z < minZ + buffer)
         {
-            newPosition = rb.position + movement;
+            localPos.z = minZ + buffer;
+            if (localVel.z < 0) localVel.z *= -1;
+            hit = true;
         }
-        else
+        else if (localPos.z > maxZ - buffer)
         {
-            newPosition = transform.position + movement;
+            localPos.z = maxZ - buffer;
+            if (localVel.z > 0) localVel.z *= -1;
+            hit = true;
         }
-        
-        // 檢查邊界並反彈（使用緩衝區避免抖動）
-        Vector3 currentPos = rb != null && rb.isKinematic ? rb.position : transform.position;
-        bool bounced = false;
-        
-        // X軸邊界檢查
-        if (newPosition.x <= minBounds.x + boundaryBuffer)
+
+        if (hit)
         {
-            newPosition.x = minBounds.x + boundaryBuffer;
-            if (moveDirection.x < 0)
-            {
-                moveDirection.x = -moveDirection.x;
-                targetDirection.x = Mathf.Abs(targetDirection.x);
-                bounced = true;
-            }
+            velocity = swimAnchor.TransformDirection(localVel);
         }
-        else if (newPosition.x >= maxBounds.x - boundaryBuffer)
-        {
-            newPosition.x = maxBounds.x - boundaryBuffer;
-            if (moveDirection.x > 0)
-            {
-                moveDirection.x = -moveDirection.x;
-                targetDirection.x = -Mathf.Abs(targetDirection.x);
-                bounced = true;
-            }
-        }
-        
-        // Y軸邊界檢查
-        if (newPosition.y <= minBounds.y + boundaryBuffer)
-        {
-            newPosition.y = minBounds.y + boundaryBuffer;
-            if (moveDirection.y < 0)
-            {
-                moveDirection.y = -moveDirection.y;
-                targetDirection.y = Mathf.Abs(targetDirection.y);
-                bounced = true;
-            }
-        }
-        else if (newPosition.y >= maxBounds.y - boundaryBuffer)
-        {
-            newPosition.y = maxBounds.y - boundaryBuffer;
-            if (moveDirection.y > 0)
-            {
-                moveDirection.y = -moveDirection.y;
-                targetDirection.y = -Mathf.Abs(targetDirection.y);
-                bounced = true;
-            }
-        }
-        
-        // Z軸邊界檢查
-        if (newPosition.z <= minBounds.z + boundaryBuffer)
-        {
-            newPosition.z = minBounds.z + boundaryBuffer;
-            if (moveDirection.z < 0)
-            {
-                moveDirection.z = -moveDirection.z;
-                targetDirection.z = Mathf.Abs(targetDirection.z);
-                bounced = true;
-            }
-        }
-        else if (newPosition.z >= maxBounds.z - boundaryBuffer)
-        {
-            newPosition.z = maxBounds.z - boundaryBuffer;
-            if (moveDirection.z > 0)
-            {
-                moveDirection.z = -moveDirection.z;
-                targetDirection.z = -Mathf.Abs(targetDirection.z);
-                bounced = true;
-            }
-        }
-        
-        // 套用位置
-        if (rb != null && rb.isKinematic)
-        {
-            rb.MovePosition(newPosition);
-        }
-        else
-        {
-            transform.position = newPosition;
-        }
-        
-        // 讓魚頭朝向移動方向（使用水平方向為主）
-        if (moveDirection != Vector3.zero)
-        {
-            // 計算水平移動方向（用於旋轉）
-            Vector3 horizontalDir = new Vector3(moveDirection.x, 0, moveDirection.z);
-            if (horizontalDir.sqrMagnitude < 0.001f)
-            {
-                horizontalDir = transform.forward;
-            }
-            horizontalDir.Normalize();
-            
-            // 計算目標旋轉（魚頭朝向移動方向）
-            // 注意：使用正向 horizontalDir，配合 forwardOffset 來調整模型朝向
-            Quaternion baseRotation = Quaternion.LookRotation(horizontalDir);
-            Quaternion offsetRotation = Quaternion.Euler(forwardOffset);
-            Quaternion targetRotation = baseRotation * offsetRotation;
-            
-            // 根據垂直移動添加輕微俯仰角
-            float pitchAngle = moveDirection.y * maxTiltAngle * 0.5f;
-            pitchAngle = Mathf.Clamp(pitchAngle, -maxTiltAngle, maxTiltAngle);
-            
-            // 添加輕微的搖擺感
-            float rollAngle = Mathf.Sin(Time.time * 2f + bobbingPhase) * 3f;
-            
-            // 套用俯仰和搖擺
-            Vector3 finalEuler = targetRotation.eulerAngles;
-            finalEuler.x = pitchAngle;
-            finalEuler.z = rollAngle;
-            targetRotation = Quaternion.Euler(finalEuler);
-            
-            // 平滑旋轉
-            float smoothRotSpeed = isScared ? rotationSpeed * 2f : rotationSpeed;
-            if (rb != null && rb.isKinematic)
-            {
-                rb.MoveRotation(Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothRotSpeed));
-            }
-            else
-            {
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * smoothRotSpeed);
-            }
-        }
+
+        return hit;
     }
-    
-    /// <summary>
-    /// 改變移動方向（生成新的目標方向）
-    /// </summary>
-    private void ChangeDirection()
+
+    private void ChangeTargetDirection()
     {
-        // 水平方向隨機（主要移動方向）
-        float horizontalAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
-        float xDir = Mathf.Cos(horizontalAngle);
-        float zDir = Mathf.Sin(horizontalAngle);
-        
-        // 垂直方向限制（魚主要水平游泳，偶爾輕微上下）
-        float yDir = Random.Range(-verticalDriftLimit, verticalDriftLimit);
-        
-        targetDirection = new Vector3(xDir, yDir, zDir).normalized;
+        Vector3 randomDir = Random.onUnitSphere;
+        randomDir.y *= 0.3f;
+        targetDirection = randomDir.normalized;
     }
-    
-    private void ValidateSetup()
+
+    private void OnTriggerEnter(Collider other) { HandleCollision(other.gameObject); }
+    private void OnCollisionEnter(Collision collision) { HandleCollision(collision.gameObject); }
+
+    private void HandleCollision(GameObject other)
     {
-        if (enableDebug)
-        {
-            Debug.Log($"🐟 Fish.cs 初始化完成: {gameObject.name}, 分數值: {scoreValue}");
-        }
-    }
-    
-    // Trigger 碰撞偵測（魚的 Collider 是 Trigger 時）
-    private void OnTriggerEnter(Collider other)
-    {
-        // 檢查是否碰到邊界 - 反彈回來
-        if (other.CompareTag(boundTag))
-        {
-            // 反轉移動方向和目標方向
-            moveDirection = -moveDirection;
-            targetDirection = moveDirection;
-        }
-        // 檢查是否碰到其他魚 - 隨機轉向
-        else if (other.CompareTag("Fish"))
-        {
-            ChangeDirection();
-            // 立即更新移動方向以避免持續碰撞
-            moveDirection = Vector3.Lerp(moveDirection, targetDirection, 0.3f);
-            moveDirection.Normalize();
-        }
-        // 檢查是否是手（透過 Tag）
-        else if (other.CompareTag(handTag))
+        if (other.CompareTag(handTag))
         {
             OnTouched();
         }
-    }
-    
-    // 物理碰撞偵測（魚的 Collider 不是 Trigger 時）
-    private void OnCollisionEnter(Collision collision)
-    {
-        // 檢查是否碰到邊界 - 反彈回來
-        if (collision.gameObject.CompareTag(boundTag))
+        else if (other.CompareTag("Fish")) // 魚撞魚
         {
-            // 反轉移動方向和目標方向
-            moveDirection = -moveDirection;
-            targetDirection = moveDirection;
-        }
-        // 檢查是否碰到其他魚 - 隨機轉向
-        else if (collision.gameObject.CompareTag("Fish"))
-        {
-            ChangeDirection();
-            // 立即更新移動方向以避免持續碰撞
-            moveDirection = Vector3.Lerp(moveDirection, targetDirection, 0.3f);
-            moveDirection.Normalize();
-        }
-        // 檢查是否是手（透過 Tag）
-        else if (collision.gameObject.CompareTag(handTag))
-        {
-            OnTouched();
+            // 修改：移除互斥力，只做單純的隨機轉向
+            ChangeTargetDirection();
         }
     }
-    
-    /// <summary>
-    /// 當被手碰到時的處理邏輯
-    /// </summary>
+
     public void OnTouched()
     {
-        // 如果手部模型處於隱藏狀態，忽略此觸碰（不加分）
-        if (!HandCollisionDetector.IsHandVisible)
-        {
-            if (enableDebug)
-            {
-                Debug.Log($" {gameObject.name} 忽略碰觸：手部模型目前為 off");
-            }
-            return;
-        }
-        // 檢查冷卻時間
-        if (Time.time - lastScoreTime < scoreCooldown)
-        {
-            if (enableDebug)
-            {
-                float remainingTime = scoreCooldown - (Time.time - lastScoreTime);
-                Debug.Log($"⏳ {gameObject.name} 冷卻中，還需 {remainingTime:F1} 秒");
-            }
-            return;
-        }
-        
-        // 更新加分時間
+        if (!HandCollisionDetector.IsHandVisible) return;
+        if (Time.time - lastScoreTime < scoreCooldown) return;
+
         lastScoreTime = Time.time;
-        
-        Debug.Log($"✨ {gameObject.name} 被摸到了！獲得 {scoreValue} 分");
-        
-        // 加分
-        if (GameManager_fish.Instance != null)
-        {
-            GameManager_fish.Instance.AddScore(scoreValue);
-        }
-        else
-        {
-            Debug.LogWarning("⚠️ 找不到 GameManager_fish！無法加分");
-        }
-        
-        // 改變顏色
+        if (enableDebug) Debug.Log($"✨ {gameObject.name} 獲得 {scoreValue} 分");
+
+        if (GameManager_fish.Instance != null) GameManager_fish.Instance.AddScore(scoreValue);
+
         if (fishRenderer != null)
         {
             fishRenderer.material.color = touchColor;
             isTouched = true;
             touchTime = Time.time;
         }
-        
-        // 受到驚嚇，向前加速逃跑
+
         isScared = true;
         scaredEndTime = Time.time + scaredDuration;
-        
-        // TODO: 實作其他遊戲邏輯
-        // - 播放音效
-        // - 播放粒子特效
-        
-        // 範例：
-        // AudioManager.Instance?.PlayTouchSound();
-        // ParticleManager.Instance?.PlayTouchEffect(transform.position);
+
+        targetDirection = Random.onUnitSphere;
+        currentVelocity = targetDirection * baseMoveSpeed * scaredSpeedMultiplier * worldScale;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (swimAnchor == null) return;
+        Gizmos.color = Color.cyan;
+        Gizmos.matrix = swimAnchor.localToWorldMatrix;
+
+        Vector3 size = new Vector3(
+            maxBounds.x - minBounds.x,
+            maxBounds.y - minBounds.y,
+            maxBounds.z - minBounds.z
+        );
+        Vector3 center = new Vector3(
+            (maxBounds.x + minBounds.x) * 0.5f,
+            (maxBounds.y + minBounds.y) * 0.5f,
+            (maxBounds.z + minBounds.z) * 0.5f
+        );
+
+        Gizmos.DrawWireCube(center, size);
     }
 }

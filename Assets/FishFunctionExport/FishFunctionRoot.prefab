@@ -645,18 +645,13 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 9033424878174963009}
-  - {fileID: 6612624504539658204}
-  - {fileID: 368742520941775069}
-  - {fileID: 8182169541486431258}
-  - {fileID: 651135861754677796}
-  - {fileID: 7626279917436842237}
   - {fileID: 982057602767505586}
   - {fileID: 1014661995130478040}
   - {fileID: 3063149136349382010}
   - {fileID: 5992452073806628110}
   - {fileID: 4385558434426519323}
   - {fileID: 5118072769339959660}
+  - {fileID: 5910231006099046282}
   - {fileID: 893351598917345168}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -950,6 +945,43 @@ Transform:
   - {fileID: 4124094148255408943}
   - {fileID: 7589374023289228546}
   - {fileID: 5067492894451549931}
+  m_Father: {fileID: 6046392107246586810}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &5198483526767526150
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5910231006099046282}
+  m_Layer: 0
+  m_Name: Fishes
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5910231006099046282
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5198483526767526150}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 114.28362, y: 2.7200003, z: -39.215694}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 9033424878174963009}
+  - {fileID: 6612624504539658204}
+  - {fileID: 368742520941775069}
+  - {fileID: 8182169541486431258}
+  - {fileID: 651135861754677796}
+  - {fileID: 7626279917436842237}
   m_Father: {fileID: 6046392107246586810}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &6739474138188950883
@@ -1283,7 +1315,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
@@ -1303,17 +1335,17 @@ PrefabInstance:
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -6.0436716
+      value: -120.32729
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -5.099984
+      value: -7.8199844
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -4.063324
+      value: 35.15237
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
@@ -1462,6 +1494,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: 0}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
@@ -1482,7 +1515,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 1809855982420343196, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
@@ -1512,17 +1545,17 @@ PrefabInstance:
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 14.574928
+      value: -99.708694
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -5.145834
+      value: -7.865834
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.37147617
+      value: 39.58717
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
@@ -1661,6 +1694,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: 0}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
@@ -2456,7 +2490,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
@@ -2476,17 +2510,17 @@ PrefabInstance:
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -2.8550718
+      value: -117.138695
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1.422214
+      value: -4.1422143
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -4.063324
+      value: 35.15237
       objectReference: {fileID: 0}
     - target: {fileID: 3652281306947615468, guid: 5caeff36034ffba4ea451e4904348494,
         type: 3}
@@ -2629,6 +2663,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: 0}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
@@ -2655,7 +2690,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
@@ -2675,17 +2710,17 @@ PrefabInstance:
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.0124283
+      value: -107.271194
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.9403858
+      value: -0.77961445
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1.1615238
+      value: 38.054173
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
@@ -2828,6 +2863,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: -90}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
@@ -2854,7 +2890,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
@@ -2874,17 +2910,17 @@ PrefabInstance:
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 3.8238282
+      value: -110.45979
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1.7374139
+      value: -4.457414
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1.1615238
+      value: 38.054173
       objectReference: {fileID: 0}
     - target: {fileID: 1624506335958790680, guid: 35b7195a6107d514e842806a72d31d57,
         type: 3}
@@ -3037,6 +3073,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: -90}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
@@ -3063,7 +3100,7 @@ PrefabInstance:
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 6046392107246586810}
+    m_TransformParent: {fileID: 5910231006099046282}
     m_Modifications:
     - target: {fileID: 1809855982420343196, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
@@ -3093,17 +3130,17 @@ PrefabInstance:
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 11.386828
+      value: -102.89679
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -8.823614
+      value: -11.543614
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.37147617
+      value: 39.58717
       objectReference: {fileID: 0}
     - target: {fileID: 3763348962786990885, guid: a20ffe8d10c78534cafd817b38517e05,
         type: 3}
@@ -3242,6 +3279,7 @@ MonoBehaviour:
   rotationSpeed: 5
   boundTag: Bound
   forwardOffset: {x: 0, y: 180, z: 0}
+  swimAnchor: {fileID: 0}
   minBounds: {x: -12, y: -4, z: -1}
   maxBounds: {x: 12, y: 5, z: 8}
   boundaryBuffer: 0.5
