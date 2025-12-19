@@ -14,6 +14,10 @@ namespace StarterAssets
         [Header("Turn Setting")]
         public float turnSpeed = 360f;
 
+        [Header("Freeze Check")]
+        public Transform cameraTransform;
+
+
         private StarterAssetsInputs _input;
         private Light playerLight;
 
@@ -115,8 +119,25 @@ namespace StarterAssets
                 isWaiting = true;
                 isWaitingAtD = true;
                 waitTimer = waitTimeAtD;
+
+                // 新增：檢查攝影機角度並凍結
+                if (cameraTransform != null)
+                {
+                    float camY = cameraTransform.eulerAngles.y;
+
+                    bool isCameraAtMinus90 =
+                        Mathf.Abs(camY - 270f) < 1f || Mathf.Abs(camY + 90f) < 1f;
+
+                    if (isCameraAtMinus90)
+                    {
+                        Debug.Log("Freeze game: camera at -90° when waiting at D");
+                        Time.timeScale = 0f;
+                    }
+                }
+
                 return;
             }
+
 
             // 回程到A停頓 + 轉身
             if (isReturning && currentIndex == 0)
