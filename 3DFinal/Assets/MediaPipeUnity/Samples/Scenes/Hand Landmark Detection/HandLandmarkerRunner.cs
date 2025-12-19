@@ -40,11 +40,22 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
 
       var options = config.GetHandLandmarkerOptions(config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? OnHandLandmarkDetectionOutput : null);
       taskApi = HandLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
-      var imageSource = ImageSourceProvider.ImageSource;
+            var imageSource = new Mediapipe.Unity.WebCamSource(
+        preferableDefaultWidth: 1280,
+        defaultAvailableResolutions: new[]
+        {
+    new Mediapipe.Unity.ResolutionStruct(640, 480, 30),
+    new Mediapipe.Unity.ResolutionStruct(1280, 720, 30),
+    new Mediapipe.Unity.ResolutionStruct(1920, 1080, 30),
+        }
+      );
 
-      yield return imageSource.Play();
 
-      if (!imageSource.isPrepared)
+            yield return imageSource.Play();
+            Debug.Log($"[WebCam] prepared={imageSource.isPrepared}, w={imageSource.textureWidth}, h={imageSource.textureHeight}, name={imageSource.sourceName}");
+
+
+            if (!imageSource.isPrepared)
       {
         Debug.LogError("Failed to start ImageSource, exiting...");
         yield break;
