@@ -41,14 +41,16 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
       var options = config.GetHandLandmarkerOptions(config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? OnHandLandmarkDetectionOutput : null);
       taskApi = HandLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
             var imageSource = new Mediapipe.Unity.WebCamSource(
-        preferableDefaultWidth: 1280,
-        defaultAvailableResolutions: new[]
-        {
-    new Mediapipe.Unity.ResolutionStruct(640, 480, 30),
-    new Mediapipe.Unity.ResolutionStruct(1280, 720, 30),
-    new Mediapipe.Unity.ResolutionStruct(1920, 1080, 30),
-        }
-      );
+   1280,
+   new Mediapipe.Unity.ImageSource.ResolutionStruct[]
+   {
+    new Mediapipe.Unity.ImageSource.ResolutionStruct(640, 480, 30),
+    new Mediapipe.Unity.ImageSource.ResolutionStruct(1280, 720, 30),
+    new Mediapipe.Unity.ImageSource.ResolutionStruct(1920, 1080, 30),
+   }
+ );
+
+
 
 
             yield return imageSource.Play();
@@ -162,9 +164,34 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
       }
     }
 
-    private void OnHandLandmarkDetectionOutput(HandLandmarkerResult result, Image image, long timestamp)
-    {
-      _handLandmarkerResultAnnotationController.DrawLater(result);
+        private int _dbgFrameSkip = 0;
+
+        private void OnHandLandmarkDetectionOutput(HandLandmarkerResult result, Image image, long timestamp)
+        {
+            // 每 10 次印一次，避免洗版
+            _dbgFrameSkip++;
+            if (_dbgFrameSkip % 10 == 0)
+            {
+                // 不同版本 result 欄位命名可能不同，但這個檔案用的是 Tasks.Vision.HandLandmarker
+                // 常見：result.handLandmarks / result.handWorldLandmarks / result.handedness
+                try
+                {
+                    int handCount = result.handLandmarks != null ? result.handLandmarks.Count : 0;
+                    int lm0;
+                    handCount = result.handLandmarks != null ? result.handLandmarks.Count : 0;
+                    lm0 = handCount > 0 ? result.handLandmarks[0].landmarks.Count : 0;
+
+
+                    Debug.Log($"[HandResult] t={timestamp} hands={handCount} lm0={lm0}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[HandResult] received but cannot read fields: {e.Message}");
+                }
+            }
+
+            _handLandmarkerResultAnnotationController.DrawLater(result);
+        }
+
     }
-  }
 }

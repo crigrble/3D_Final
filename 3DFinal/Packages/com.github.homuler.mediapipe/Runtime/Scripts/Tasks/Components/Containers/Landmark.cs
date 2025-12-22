@@ -17,7 +17,7 @@ namespace Mediapipe.Tasks.Components.Containers
   ///   landmark coordinates are in meters. z represents the landmark depth, and the
   ///   smaller the value the closer the world landmark is to the camera.
   /// </summary>
-  public readonly struct Landmark : IEquatable<Landmark>
+  public struct Landmark : IEquatable<Landmark>
   {
     private const float _LandmarkTolerance = 1e-6f;
 
@@ -105,7 +105,7 @@ namespace Mediapipe.Tasks.Components.Containers
   ///   A normalized version of above Landmark struct. All coordinates should be
   ///   within [0, 1].
   /// </summary>
-  public readonly struct NormalizedLandmark : IEquatable<NormalizedLandmark>
+  public struct NormalizedLandmark : IEquatable<NormalizedLandmark>
   {
     private const float _LandmarkTolerance = 1e-6f;
 
@@ -175,7 +175,7 @@ namespace Mediapipe.Tasks.Components.Containers
   /// <summary>
   ///   A list of Landmarks.
   /// </summary>
-  public readonly struct Landmarks
+  public struct Landmarks
   {
     public readonly List<Landmark> landmarks;
 
@@ -239,11 +239,14 @@ namespace Mediapipe.Tasks.Components.Containers
   /// <summary>
   ///   A list of NormalizedLandmarks.
   /// </summary>
-  public readonly struct NormalizedLandmarks
+  public  struct NormalizedLandmarks
   {
-    public readonly List<NormalizedLandmark> landmarks;
+    public List<NormalizedLandmark> landmarks;
 
-    internal NormalizedLandmarks(List<NormalizedLandmark> landmarks)
+        public int Count => landmarks != null ? landmarks.Count : 0;
+
+
+        internal NormalizedLandmarks(List<NormalizedLandmark> landmarks)
     {
       this.landmarks = landmarks;
     }
