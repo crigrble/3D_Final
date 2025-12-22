@@ -14,7 +14,6 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
   public class HandLandmarkerRunner : VisionTaskApiRunner<HandLandmarker>
   {
     [SerializeField] private HandLandmarkerResultAnnotationController _handLandmarkerResultAnnotationController;
-    [SerializeField] private HandCollisionDetector _handCollisionDetector; // 手部碰撞檢測器
 
     private Experimental.TextureFramePool _textureFramePool;
 
@@ -41,22 +40,11 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
 
       var options = config.GetHandLandmarkerOptions(config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? OnHandLandmarkDetectionOutput : null);
       taskApi = HandLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
-            var imageSource = new Mediapipe.Unity.WebCamSource(
-        preferableDefaultWidth: 1280,
-        defaultAvailableResolutions: new[]
-        {
-    new Mediapipe.Unity.WebCamSource.ResolutionStruct(640, 480, 30),
-    new Mediapipe.Unity.WebCamSource.ResolutionStruct(1280, 720, 30),
-    new Mediapipe.Unity.WebCamSource.ResolutionStruct(1920, 1080, 30),
-        }
-      );
+      var imageSource = ImageSourceProvider.ImageSource;
 
+      yield return imageSource.Play();
 
-            yield return imageSource.Play();
-            Debug.Log($"[WebCam] prepared={imageSource.isPrepared}, w={imageSource.textureWidth}, h={imageSource.textureHeight}, name={imageSource.sourceName}");
-
-
-            if (!imageSource.isPrepared)
+      if (!imageSource.isPrepared)
       {
         Debug.LogError("Failed to start ImageSource, exiting...");
         yield break;
@@ -140,11 +128,6 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
             if (taskApi.TryDetect(image, imageProcessingOptions, ref result))
             {
               _handLandmarkerResultAnnotationController.DrawNow(result);
-              // 傳遞手部數據給碰撞檢測器
-              if (_handCollisionDetector != null && result.handLandmarks != null && result.handLandmarks.Count > 0)
-              {
-                _handCollisionDetector.CheckHandCollision(result.handLandmarks[0]);
-              }
             }
             else
             {
@@ -155,11 +138,6 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
             if (taskApi.TryDetectForVideo(image, GetCurrentTimestampMillisec(), imageProcessingOptions, ref result))
             {
               _handLandmarkerResultAnnotationController.DrawNow(result);
-              // 傳遞手部數據給碰撞檢測器
-              if (_handCollisionDetector != null && result.handLandmarks != null && result.handLandmarks.Count > 0)
-              {
-                _handCollisionDetector.CheckHandCollision(result.handLandmarks[0]);
-              }
             }
             else
             {
@@ -176,11 +154,6 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
     private void OnHandLandmarkDetectionOutput(HandLandmarkerResult result, Image image, long timestamp)
     {
       _handLandmarkerResultAnnotationController.DrawLater(result);
-      // 傳遞手部數據給碰撞檢測器
-      if (_handCollisionDetector != null && result.handLandmarks != null && result.handLandmarks.Count > 0)
-      {
-        _handCollisionDetector.CheckHandCollision(result.handLandmarks[0]);
-      }
     }
   }
 }
