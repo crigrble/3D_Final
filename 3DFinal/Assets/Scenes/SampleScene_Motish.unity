@@ -8495,6 +8495,12 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.93772376, y: 1.3157, z: 0.21922393}
   m_Center: {x: -0.12886837, y: -8.176572, z: 0.01371847}
+--- !u!137 &567072075 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 2668579799152802348, guid: c27047d6875818348a5e03f4ae528707,
+    type: 3}
+  m_PrefabInstance: {fileID: 1427917146}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &571996818 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7087414558558558540, guid: a3862a85dc82a1e478bba0d9b5241d73,
@@ -17027,6 +17033,12 @@ MonoBehaviour:
   clampX: 1
   clampY: 1
   clampZ: 1
+--- !u!4 &1168489732 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 9122646479415962093, guid: c27047d6875818348a5e03f4ae528707,
+    type: 3}
+  m_PrefabInstance: {fileID: 1427917146}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1172804760
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -22147,6 +22159,11 @@ PrefabInstance:
       propertyPath: m_TagString
       value: Fish
       objectReference: {fileID: 0}
+    - target: {fileID: 5934456134927554222, guid: c27047d6875818348a5e03f4ae528707,
+        type: 3}
+      propertyPath: handDriver
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 6055461872722320134, guid: c27047d6875818348a5e03f4ae528707,
         type: 3}
       propertyPath: m_IsTrigger
@@ -22214,10 +22231,15 @@ PrefabInstance:
       objectReference: {fileID: 1516429514}
     m_RemovedComponents:
     - {fileID: 8658136740062126814, guid: c27047d6875818348a5e03f4ae528707, type: 3}
+    - {fileID: 8457276369284849439, guid: c27047d6875818348a5e03f4ae528707, type: 3}
     m_RemovedGameObjects:
     - {fileID: 7452269167763423938, guid: c27047d6875818348a5e03f4ae528707, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8985250713036879530, guid: c27047d6875818348a5e03f4ae528707,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1841256324}
     - targetCorrespondingSourceObject: {fileID: 8795987303007662161, guid: c27047d6875818348a5e03f4ae528707,
         type: 3}
       insertIndex: -1
@@ -28187,6 +28209,48 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 1172804760}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1841256320 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8985250713036879530, guid: c27047d6875818348a5e03f4ae528707,
+    type: 3}
+  m_PrefabInstance: {fileID: 1427917146}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1841256324
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1841256320}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b4f641ca638edb4b9a8653437c01485, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mainCamera: {fileID: 330585545}
+  handRoot: {fileID: 1168489732}
+  handRenderer: {fileID: 567072075}
+  hideHandDelay: 0.1
+  useMultipleColliders: 1
+  colliderPoints: []
+  movementBounds: {fileID: 1909539288}
+  clampToBounds: 0
+  boundsPadding: 0
+  positionScaleX: 3
+  positionScaleY: 3
+  depthScale: -15
+  baseHandSize: 0.2
+  handOffset: {x: 4.5, y: 2.4, z: -2}
+  smoothing: 0.5
+  enableRotation: 1
+  onlyZAxisRotation: 1
+  rotationSmoothness: 0.3
+  rotationOffset: {x: 0, y: 0, z: 0}
+  rotationClamp: {x: 15, y: 360, z: 15}
+  enableDebug: 1
+  showGizmos: 1
+  logPositions: 0
+  gizmoColor: {r: 0, g: 1, b: 1, a: 1}
 --- !u!1001 &1845648738
 PrefabInstance:
   m_ObjectHideFlags: 0

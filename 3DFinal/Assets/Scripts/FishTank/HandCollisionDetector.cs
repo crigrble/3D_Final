@@ -18,21 +18,24 @@ public class HandCollisionDetector : MonoBehaviour
     [SerializeField] private bool useMultipleColliders = false;
     [SerializeField] private Transform[] colliderPoints;
 
-    [Header("移動範圍限制")]
-    public BoxCollider movementBounds;   // ⚠️ 請確認這個 BoxCollider 的 Size Z 夠大 (例如 10)
-    public bool clampToBounds = true;
+    [Header("移動範圍限制（建議：關掉這裡的 Clamp，交給你 Wrist 上的 ClampInsideOrientedBox）")]
+    public BoxCollider movementBounds;
+    public bool clampToBounds = false;     // ✅ 改：預設關掉，避免雙重 Clamp
     public float boundsPadding = 0.02f;
 
     [Header("位置設定")]
     [SerializeField] private float positionScaleX = 8.0f;
     [SerializeField] private float positionScaleY = 8.0f;
-
-    // ⚠️ 如果校正後移動太慢，把這個改大 (例如 20 或 30)
     [SerializeField] private float depthScale = 15.0f;
 
-    [SerializeField] private float baseHandSize = 0.15f; // 會被校正功能覆蓋
+    [SerializeField] private float baseHandSize = 0.15f;
     [SerializeField] private Vector3 handOffset = Vector3.zero;
     [SerializeField] private float smoothing = 0.5f;
+
+    [Header("軸向反轉（新增：方向相反就用勾勾修）")]
+    [SerializeField] private bool invertX = false; // 左右
+    [SerializeField] private bool invertY = false; // 上下
+    [SerializeField] private bool invertZ = false; // 深度
 
     [Header("旋轉設定")]
     [SerializeField] private bool enableRotation = true;
@@ -65,24 +68,18 @@ public class HandCollisionDetector : MonoBehaviour
         if (_handLandmarkerRunner == null) _handLandmarkerRunner = FindObjectOfType<HandLandmarkerRunner>();
         if (mainCamera == null) mainCamera = Camera.main;
 
-        //if (handRoot != null)
-        //{
-        //    handOffset = handRoot.position;
-        //    Debug.Log($"✅ 已自動校正手部起始點為: {handOffset}");
-        //}
-
         ValidateBoneSetup();
 
-        // 提醒
-        if (movementBounds != null && movementBounds.size.z < 1.0f)
+        // ✅ 新增：若 handOffset 沒設定，就用當前 handRoot 位置當基準（避免以世界原點為中心漂移）
+        if (handRoot != null && handOffset == Vector3.zero)
         {
-            Debug.LogWarning("⚠️ 警告：你的水箱範圍 (BoxCollider) Z 軸太薄了！這會導致無法前後移動。請加大 BoxCollider 的 Size Z。");
+            handOffset = handRoot.position;
+            if (enableDebug) Debug.Log($"✅ handOffset 自動設為 handRoot 起始位置：{handOffset}");
         }
     }
 
     private void Update()
     {
-        // ✅ 新增：按空白鍵校正基準深度
         if (Input.GetKeyDown(KeyCode.Space))
         {
             CalibrateDepth();
@@ -117,12 +114,9 @@ public class HandCollisionDetector : MonoBehaviour
         }
     }
 
-    // ✅ 校正函數實作
     private void CalibrateDepth()
     {
-      
-        if ( _latestHandLandmarks.landmarks == null || _latestHandLandmarks.landmarks.Count < 21)
-
+        if (_latestHandLandmarks.landmarks == null || _latestHandLandmarks.landmarks.Count < 21)
         {
             Debug.LogWarning("⚠️ 無法校正：沒有偵測到手");
             return;
@@ -131,7 +125,6 @@ public class HandCollisionDetector : MonoBehaviour
         var wrist = _latestHandLandmarks.landmarks[0];
         var middle = _latestHandLandmarks.landmarks[9];
 
-        // 將當前手掌大小設為「基準值」
         baseHandSize = CalculateHandSize(wrist, middle);
         Debug.Log($"✅ 深度基準已校正！現在手掌大小 {baseHandSize:F4} 被視為「原點深度」。");
     }
@@ -176,11 +169,7 @@ public class HandCollisionDetector : MonoBehaviour
             float handSize = CalculateHandSize(wristLandmark, middleBaseLandmark);
             float depthOffset = CalculateDepthFromHandSize(handSize);
 
-            // ✅ Debug 深度資訊 (如果你發現還是不動，觀察這裡的數值)
-            // if (enableDebug) Debug.Log($"Size: {handSize:F3} / DepthOffset: {depthOffset:F2}");
-
             Vector3 targetPos = LandmarkToWorldPosition(middleBaseLandmark, depthOffset);
-
             UpdateHandRootPosition(targetPos);
 
             if (enableRotation)
@@ -200,16 +189,23 @@ public class HandCollisionDetector : MonoBehaviour
         }
     }
 
+    // ✅ 用「魚缸/Bounds 的座標系」定義左右/上下/深度
+    // ✅ 新增 invertX/Y/Z：方向相反就勾
     private Vector3 LandmarkToWorldPosition(Mediapipe.Tasks.Components.Containers.NormalizedLandmark landmark, float depthOffset = 0f)
     {
         float rawX = (landmark.x - 0.5f);
         float rawY = (landmark.y - 0.5f);
 
-        Vector3 moveX = mainCamera.transform.right * (rawX * positionScaleX);
-        Vector3 moveY = mainCamera.transform.up * (-rawY * positionScaleY);
-        // 強制使用世界座標的 Z 軸 (0, 0, 1) 來控制深度
-        // 如果你的水箱是橫的，這裡可能要改成 Vector3.right 或 Vector3.left，先試試 forward
-        Vector3 moveZ = Vector3.right * depthOffset; // 深度移動
+        // 反轉：這三個勾勾只會影響方向，不改尺度
+        if (invertX) rawX *= -1f;
+        if (invertY) rawY *= -1f;
+        if (invertZ) depthOffset *= -1f;
+
+        Transform refT = (movementBounds != null) ? movementBounds.transform : mainCamera.transform;
+
+        Vector3 moveX = refT.right * (rawX * positionScaleX);      // 左右
+        Vector3 moveY = refT.up * (-rawY * positionScaleY);        // 上下（這裡保留 -rawY 是因為影像Y通常向下為正）
+        Vector3 moveZ = refT.forward * (depthOffset);              // 深度（藍色Z）
 
         return handOffset + moveX + moveY + moveZ;
     }
@@ -218,6 +214,7 @@ public class HandCollisionDetector : MonoBehaviour
     {
         if (handRoot == null) return;
 
+        // 若你堅持也要這裡 clamp，才打開 clampToBounds
         if (clampToBounds && movementBounds != null)
         {
             targetPos = ClampToBoxBounds(targetPos, movementBounds.bounds, boundsPadding);
@@ -239,10 +236,12 @@ public class HandCollisionDetector : MonoBehaviour
     private void UpdateHandWithColliders()
     {
         Vector3 targetWrist = landmarkWorldPositions[0];
+
         if (clampToBounds && movementBounds != null)
         {
             targetWrist = ClampToBoxBounds(targetWrist, movementBounds.bounds, boundsPadding);
         }
+
         handRoot.position = Vector3.Lerp(handRoot.position, targetWrist, smoothing);
 
         if (colliderPoints != null)
@@ -267,7 +266,7 @@ public class HandCollisionDetector : MonoBehaviour
         return new Vector3(
             Mathf.Clamp(pos.x, b.min.x + pad, b.max.x - pad),
             Mathf.Clamp(pos.y, b.min.y + pad, b.max.y - pad),
-            Mathf.Clamp(pos.z, b.min.z + pad, b.max.z - pad) // 確保這裡沒把 Z 鎖死
+            Mathf.Clamp(pos.z, b.min.z + pad, b.max.z - pad)
         );
     }
 
@@ -282,8 +281,6 @@ public class HandCollisionDetector : MonoBehaviour
 
     private float CalculateDepthFromHandSize(float handSize)
     {
-        // 如果手比基準大 (closer)，ratio < 1 -> depth < 0 (移向相機)
-        // 如果手比基準小 (further)，ratio > 1 -> depth > 0 (遠離相機)
         float depthRatio = baseHandSize / handSize;
         float depth = (depthRatio - 1.0f) * depthScale;
         return depth;
@@ -316,6 +313,7 @@ public class HandCollisionDetector : MonoBehaviour
     private void UpdateHandRotation(Quaternion targetRotation)
     {
         if (handRoot == null) return;
+
         Quaternion newRotation;
         if (onlyZAxisRotation)
         {

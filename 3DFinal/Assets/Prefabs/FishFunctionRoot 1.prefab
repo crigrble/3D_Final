@@ -1146,7 +1146,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   currentScore: 0
   scoreText: {fileID: 192942387609422193}
-  scoreTextLegacy: {fileID: 0}
+  resultScoreText: {fileID: 0}
   enableDebug: 1
 --- !u!1 &7089406740631710735
 GameObject:
@@ -1366,7 +1366,6 @@ GameObject:
   m_Component:
   - component: {fileID: 9026663029670585091}
   - component: {fileID: 5934456134927554222}
-  - component: {fileID: 8457276369284849439}
   m_Layer: 8
   m_Name: HandDetector
   m_TagString: Untagged
@@ -1407,43 +1406,7 @@ MonoBehaviour:
   runningMode: 1
   _handLandmarkerResultAnnotationController: {fileID: 385970395627364405}
   driveHandIndex: 0
-  handDriver: {fileID: 8457276369284849439}
---- !u!114 &8457276369284849439
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8985250713036879530}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b4f641ca638edb4b9a8653437c01485, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  mainCamera: {fileID: 0}
-  handRoot: {fileID: 9122646479415962093}
-  handRenderer: {fileID: 2668579799152802348}
-  hideHandDelay: 0.1
-  useMultipleColliders: 1
-  colliderPoints: []
-  movementBounds: {fileID: 4935241213259102464}
-  clampToBounds: 0
-  boundsPadding: 0
-  positionScaleX: 3
-  positionScaleY: 3
-  depthScale: 20
-  baseHandSize: 0.2
-  handOffset: {x: 4.5, y: 2.4, z: -2}
-  smoothing: 0.5
-  enableRotation: 1
-  onlyZAxisRotation: 1
-  rotationSmoothness: 0.3
-  rotationOffset: {x: 0, y: 0, z: 0}
-  rotationClamp: {x: 15, y: 360, z: 15}
-  enableDebug: 1
-  showGizmos: 1
-  logPositions: 0
-  gizmoColor: {r: 0, g: 1, b: 1, a: 1}
+  handDriver: {fileID: 0}
 --- !u!1 &8997895498603658949
 GameObject:
   m_ObjectHideFlags: 0
@@ -2029,12 +1992,6 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 3135676876587024202}
   m_PrefabAsset: {fileID: 0}
---- !u!137 &2668579799152802348 stripped
-SkinnedMeshRenderer:
-  m_CorrespondingSourceObject: {fileID: 1048382899078366566, guid: 930b7a19d446f4b4c9c810e37e84e625,
-    type: 3}
-  m_PrefabInstance: {fileID: 3135676876587024202}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &2822489408806319227 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 914044531976162097, guid: 930b7a19d446f4b4c9c810e37e84e625,
@@ -2367,12 +2324,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1.7226046, y: 2.0380113, z: 1}
   m_Center: {x: 0.013191542, y: 1.0721245, z: 0.00000006909327}
---- !u!4 &9122646479415962093 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 6133356384826054311, guid: 930b7a19d446f4b4c9c810e37e84e625,
-    type: 3}
-  m_PrefabInstance: {fileID: 3135676876587024202}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &9158711789796963016 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 6097432271762460034, guid: 930b7a19d446f4b4c9c810e37e84e625,
@@ -2862,6 +2813,8 @@ MonoBehaviour:
   touchColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   colorDuration: 0.3
   scoreCooldown: 1.5
+  scoreOnlyOnce: 1
+  allowTouchEffectsAfterScored: 1
   enableMovement: 1
   baseMoveSpeed: 2.5
   turnSpeed: 0.6
@@ -3319,6 +3272,8 @@ MonoBehaviour:
   touchColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   colorDuration: 0.3
   scoreCooldown: 1.5
+  scoreOnlyOnce: 1
+  allowTouchEffectsAfterScored: 1
   enableMovement: 1
   baseMoveSpeed: 2.5
   turnSpeed: 0.6
@@ -3523,6 +3478,8 @@ MonoBehaviour:
   touchColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   colorDuration: 0.3
   scoreCooldown: 1.5
+  scoreOnlyOnce: 1
+  allowTouchEffectsAfterScored: 1
   enableMovement: 1
   baseMoveSpeed: 2.5
   turnSpeed: 0.6
@@ -3728,6 +3685,8 @@ MonoBehaviour:
   touchColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   colorDuration: 0.3
   scoreCooldown: 1.5
+  scoreOnlyOnce: 1
+  allowTouchEffectsAfterScored: 1
   enableMovement: 1
   baseMoveSpeed: 2.5
   turnSpeed: 0.6
