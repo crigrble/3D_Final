@@ -9,6 +9,8 @@ TagManager:
   - Bound
   - Hand
   - CinemachineTarget
+  - ScoreUI
+  - ResultScoreUI
   layers:
   - Default
   - TransparentFX

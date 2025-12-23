@@ -6,6 +6,9 @@ using UnityEngine;
 /// 1. 加入「初始位置自動適應」：魚會從您擺放的地方開始游，不會再被強制傳送
 /// 2. 移除互斥力，保持單純隨機轉向
 /// 3. 保留所有自然游動優化
+///
+/// 【新增】
+/// 4. 支援「同一條魚只算一次分」（可開關）
 /// </summary>
 public class Fish : MonoBehaviour
 {
@@ -18,7 +21,16 @@ public class Fish : MonoBehaviour
     [SerializeField] private string handTag = "Hand";
     [SerializeField] private Color touchColor = Color.yellow;
     [SerializeField] private float colorDuration = 0.3f;
+
+    [Tooltip("連續碰撞時的加分冷卻（秒）。若你開啟「只算一次」，此冷卻主要只影響觸碰特效/受驚嚇的觸發頻率。")]
     [SerializeField] private float scoreCooldown = 1.0f;
+
+    [Header("計分規則（新增）")]
+    [Tooltip("勾選後：同一條魚在本局遊戲只會加分一次。")]
+    [SerializeField] private bool scoreOnlyOnce = true;
+
+    [Tooltip("如果勾選：即使已經得過分，仍可觸發變色/受驚嚇（但不加分）。")]
+    [SerializeField] private bool allowTouchEffectsAfterScored = true;
 
     [Header("移動設定")]
     [SerializeField] private bool enableMovement = true;
@@ -64,6 +76,9 @@ public class Fish : MonoBehaviour
     private bool isTouched = false;
     private float lastScoreTime = -999f;
 
+    // 【新增】這條魚是否已經給過分數
+    private bool hasScored = false;
+
     private Vector3 currentVelocity;
     private Vector3 targetDirection;
     private float nextChangeTime = 0f;
@@ -82,19 +97,15 @@ public class Fish : MonoBehaviour
         }
 
         // --- 關鍵修正：自動調整邊界以包含初始位置 ---
-        // 防止魚一開始就因為超出範圍被強制傳送
         Vector3 startLocalPos = swimAnchor.InverseTransformPoint(transform.position);
         bool boundsAdjusted = false;
 
-        // X 軸檢查與擴展
         if (startLocalPos.x < minBounds.x + boundaryBuffer) { minBounds.x = startLocalPos.x - boundaryBuffer - 0.1f; boundsAdjusted = true; }
         if (startLocalPos.x > maxBounds.x - boundaryBuffer) { maxBounds.x = startLocalPos.x + boundaryBuffer + 0.1f; boundsAdjusted = true; }
 
-        // Y 軸檢查與擴展
         if (startLocalPos.y < minBounds.y + boundaryBuffer) { minBounds.y = startLocalPos.y - boundaryBuffer - 0.1f; boundsAdjusted = true; }
         if (startLocalPos.y > maxBounds.y - boundaryBuffer) { maxBounds.y = startLocalPos.y + boundaryBuffer + 0.1f; boundsAdjusted = true; }
 
-        // Z 軸檢查與擴展
         if (startLocalPos.z < minBounds.z + boundaryBuffer) { minBounds.z = startLocalPos.z - boundaryBuffer - 0.1f; boundsAdjusted = true; }
         if (startLocalPos.z > maxBounds.z - boundaryBuffer) { maxBounds.z = startLocalPos.z + boundaryBuffer + 0.1f; boundsAdjusted = true; }
 
@@ -104,16 +115,11 @@ public class Fish : MonoBehaviour
         }
         // ---------------------------------------------
 
-        // 1. 初始化隨機參數
         speedOffset = Random.Range(0f, 100f);
 
-        // 2. 隨機初始方向
         ChangeTargetDirection();
-
-        // 3. 錯開轉向時間
         nextChangeTime = Time.time + Random.Range(0f, changeDirectionInterval);
 
-        // 4. 初始速度
         if (currentVelocity == Vector3.zero)
         {
             currentVelocity = transform.forward * baseMoveSpeed * worldScale;
@@ -137,14 +143,12 @@ public class Fish : MonoBehaviour
 
         if (isScared && Time.time >= scaredEndTime) isScared = false;
 
-        // 定時改變目標方向
         if (!isScared && Time.time >= nextChangeTime)
         {
             ChangeTargetDirection();
             nextChangeTime = Time.time + changeDirectionInterval + Random.Range(-1.0f, 1.0f);
         }
 
-        // 計算目標速度
         float targetSpeed = baseMoveSpeed * worldScale;
         if (isScared) targetSpeed *= scaredSpeedMultiplier;
 
@@ -156,22 +160,18 @@ public class Fish : MonoBehaviour
 
         Vector3 desiredVelocity = targetDirection * targetSpeed;
 
-        // 慣性轉向
         float steerRate = turnSpeed;
         if (isScared) steerRate *= 2f;
 
         currentVelocity = Vector3.Lerp(currentVelocity, desiredVelocity, dt * steerRate);
 
-        // 防止速度過低
         if (currentVelocity.sqrMagnitude < 0.0001f)
         {
             currentVelocity = Random.onUnitSphere * targetSpeed * 0.1f;
         }
 
-        // 計算位移
         Vector3 nextPos = transform.position + currentVelocity * dt;
 
-        // 邊界檢查
         Vector3 localPos = swimAnchor.InverseTransformPoint(nextPos);
         bool hitBound = CheckBounds(ref localPos, ref currentVelocity);
 
@@ -180,11 +180,9 @@ public class Fish : MonoBehaviour
             targetDirection = currentVelocity.normalized;
         }
 
-        // 應用位置
         Vector3 finalWorldPos = swimAnchor.TransformPoint(localPos);
         transform.position = finalWorldPos;
 
-        // 旋轉
         if (currentVelocity.sqrMagnitude > 0.0001f)
         {
             Vector3 horizontalDir = currentVelocity;
@@ -206,7 +204,6 @@ public class Fish : MonoBehaviour
         }
     }
 
-    // 檢查邊界
     private bool CheckBounds(ref Vector3 localPos, ref Vector3 velocity)
     {
         bool hit = false;
@@ -221,7 +218,6 @@ public class Fish : MonoBehaviour
 
         Vector3 localVel = swimAnchor.InverseTransformDirection(velocity);
 
-        // X 軸
         if (localPos.x < minX + buffer)
         {
             localPos.x = minX + buffer;
@@ -235,7 +231,6 @@ public class Fish : MonoBehaviour
             hit = true;
         }
 
-        // Y 軸
         if (localPos.y < minY + buffer)
         {
             localPos.y = minY + buffer;
@@ -249,7 +244,6 @@ public class Fish : MonoBehaviour
             hit = true;
         }
 
-        // Z 軸
         if (localPos.z < minZ + buffer)
         {
             localPos.z = minZ + buffer;
@@ -287,9 +281,8 @@ public class Fish : MonoBehaviour
         {
             OnTouched();
         }
-        else if (other.CompareTag("Fish")) // 魚撞魚
+        else if (other.CompareTag("Fish"))
         {
-            // 修改：移除互斥力，只做單純的隨機轉向
             ChangeTargetDirection();
         }
     }
@@ -297,12 +290,32 @@ public class Fish : MonoBehaviour
     public void OnTouched()
     {
         if (!HandCollisionDetector.IsHandVisible) return;
+
+        // 冷卻（避免連續碰撞洗事件）
         if (Time.time - lastScoreTime < scoreCooldown) return;
-
         lastScoreTime = Time.time;
-        if (enableDebug) Debug.Log($"✨ {gameObject.name} 獲得 {scoreValue} 分");
 
-        if (GameManager_fish.Instance != null) GameManager_fish.Instance.AddScore(scoreValue);
+        // --- 計分邏輯（新增）---
+        bool canScore = true;
+        if (scoreOnlyOnce && hasScored) canScore = false;
+
+        if (canScore)
+        {
+            if (enableDebug) Debug.Log($"✨ {gameObject.name} 獲得 {scoreValue} 分");
+
+            if (GameManager_fish.Instance != null)
+                GameManager_fish.Instance.AddScore(scoreValue);
+
+            hasScored = true;
+        }
+        else
+        {
+            if (enableDebug) Debug.Log($"(不計分) {gameObject.name} 已經計過分");
+        }
+
+        // --- 觸碰特效/受驚嚇（可選：已得分後仍要不要做特效）---
+        if (!canScore && !allowTouchEffectsAfterScored)
+            return;
 
         if (fishRenderer != null)
         {

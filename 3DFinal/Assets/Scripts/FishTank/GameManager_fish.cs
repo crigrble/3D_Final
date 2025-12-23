@@ -1,99 +1,107 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 
-/// <summary>
-/// 摸魚遊戲管理器
-/// 管理分數、UI 顯示等遊戲邏輯
-/// </summary>
 public class GameManager_fish : MonoBehaviour
 {
-    // Singleton 實例
     public static GameManager_fish Instance { get; private set; }
-    
+
     [Header("分數設定")]
     [SerializeField] private int currentScore = 0;
-    
-    [Header("UI 參考")]
-    [SerializeField] private TextMeshProUGUI scoreText; // TMP 文字
-    [SerializeField] private Text scoreTextLegacy; // 舊版 UI Text（備用）
-    
+
+    [Header("UI (自動綁定)")]
+    [Tooltip("遊戲中顯示分數的 TMP 文字（Tag=ScoreUI 會自動抓）")]
+    [SerializeField] private TextMeshProUGUI scoreText;
+
+    [Tooltip("結算畫面顯示最終分數的 TMP 文字（Tag=ResultScoreUI 會自動抓）")]
+    [SerializeField] private TextMeshProUGUI resultScoreText;
+
     [Header("調試設定")]
     [SerializeField] private bool enableDebug = true;
-    
+
     private void Awake()
     {
-        // Singleton 設定
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
             return;
         }
-        
+
         Instance = this;
-        DontDestroyOnLoad(gameObject); // 切換場景時不銷毀
+        DontDestroyOnLoad(gameObject);
+
+        SceneManager.sceneLoaded += OnSceneLoaded;
     }
-    
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
     private void Start()
     {
-        // 初始化 UI
+        AutoBindUI();
         UpdateScoreUI();
-        
+        UpdateResultUI();
+
+        if (enableDebug) Debug.Log("✅ GameManager_fish 初始化完成");
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        AutoBindUI();
+        UpdateScoreUI();
+        UpdateResultUI();
+    }
+
+    private void AutoBindUI()
+    {
+        // 遊戲中分數 UI
+        var scoreObj = GameObject.FindGameObjectWithTag("ScoreUI");
+        if (scoreObj != null)
+            scoreText = scoreObj.GetComponent<TextMeshProUGUI>();
+
+        // 結算分數 UI
+        var resultObj = GameObject.FindGameObjectWithTag("ResultScoreUI");
+        if (resultObj != null)
+            resultScoreText = resultObj.GetComponent<TextMeshProUGUI>();
+
         if (enableDebug)
         {
-            Debug.Log("✅ GameManager_fish 初始化完成");
+            Debug.Log($"🔎 AutoBindUI：scoreText={(scoreText ? scoreText.name : "null")} / resultScoreText={(resultScoreText ? resultScoreText.name : "null")}");
         }
     }
-    
-    /// <summary>
-    /// 增加分數
-    /// </summary>
+
     public void AddScore(int points)
     {
         currentScore += points;
-        
+
         if (enableDebug)
-        {
             Debug.Log($"💰 加分 +{points}！當前分數: {currentScore}");
-        }
-        
+
         UpdateScoreUI();
+        UpdateResultUI(); // 如果結算畫面已經開著，也會同步更新
     }
-    
-    /// <summary>
-    /// 重置分數
-    /// </summary>
+
     public void ResetScore()
     {
         currentScore = 0;
         UpdateScoreUI();
+        UpdateResultUI();
     }
-    
-    /// <summary>
-    /// 取得當前分數
-    /// </summary>
-    public int GetCurrentScore()
-    {
-        return currentScore;
-    }
-    
-    /// <summary>
-    /// 更新分數 UI
-    /// </summary>
+
+    public int GetCurrentScore() => currentScore;
+
     private void UpdateScoreUI()
     {
-        string scoreString = "Score:" + currentScore.ToString();
-        
-        // 使用 TextMeshPro
         if (scoreText != null)
-        {
-            scoreText.text = scoreString;
-        }
-        
-        // 備用：舊版 UI Text
-        if (scoreTextLegacy != null)
-        {
-            scoreTextLegacy.text = scoreString;
-        }
+            scoreText.text = "Score: " + currentScore;
+    }
+
+    private void UpdateResultUI()
+    {
+        if (resultScoreText != null)
+            resultScoreText.text = "Final Score: " + currentScore;
     }
 }
