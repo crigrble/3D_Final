@@ -6,23 +6,25 @@ namespace StarterAssets
     public class GameOver: MonoBehaviour
     {
         [Header("References")]
-        public PatrolController patrol;     // ��A�� PatrolController
-        public Transform mainCamera;        // �� Main Camera (Transform)
+        public PatrolController patrol;     // 巡邏控制器 PatrolController
+        public Transform mainCamera;        // 主攝影機 Main Camera (Transform)
+        public GameObject gameOverUI;       // 遊戲結束UI
 
         [Header("Point D Check")]
-        [Tooltip("���I�P�w�Z���C�Q�� PatrolController �@�P�N�� 0.25")]
+        [Tooltip("到達點D的距離判定，建議與 PatrolController 一致，預設 0.25")]
         public float arriveDistance = 0.25f;
 
-        [Header("Yaw Range (degrees)")]
-        [Tooltip("���\���׽d��G0 ~ -45�]�]�t���I�^�C���P�� [-45, 0]")]
-        public float minYaw = -45f;
-        public float maxYaw = 0f;
+        [Header("Camera Angle Range (degrees)")]
+        [Tooltip("允許的攝影機角度範圍：-30 ~ 0 度")]
+        public float minAngle = -30f;
+        public float maxAngle = 0f;
 
         [Header("Game Over")]
         public UnityEvent onLose;
         public bool pauseTimeOnLose = true;
 
         bool hasCheckedAtD = false;
+        bool isGameOver = false;
 
         void Reset()
         {
@@ -30,14 +32,26 @@ namespace StarterAssets
             if (!mainCamera && Camera.main) mainCamera = Camera.main.transform;
         }
 
+        void Start()
+        {
+            // 初始化時隱藏遊戲結束UI
+            if (gameOverUI != null)
+            {
+                gameOverUI.SetActive(false);
+            }
+        }
+
         void Update()
         {
+            // 如果已經遊戲結束，不再檢查
+            if (isGameOver) return;
+
             if (!patrol || !mainCamera) return;
 
             var points = patrol.patrolPoints;
             if (points == null || points.Length == 0) return;
 
-            // Point D = �̫�@���I
+            // Point D = 最後一個點
             Transform pointD = points[points.Length - 1];
             if (!pointD) return;
 
@@ -51,23 +65,40 @@ namespace StarterAssets
             {
                 hasCheckedAtD = true;
 
-                float yaw = NormalizeSignedAngle(mainCamera.eulerAngles.y); // -180~180
-                bool ok = (yaw >= minYaw && yaw <= maxYaw);                 // [-45, 0]
+                // 檢查攝影機角度（Y軸旋轉，即水平角度）
+                float cameraAngle = NormalizeSignedAngle(mainCamera.eulerAngles.y); // -180~180
+                bool isAngleValid = (cameraAngle >= minAngle && cameraAngle <= maxAngle); // [-30, 0]
 
-                if (!ok)
-                    Lose(yaw);
+                if (!isAngleValid)
+                {
+                    Lose(cameraAngle);
+                }
             }
 
-            // �Y�A�u�Q�P�@���A�N��o�q����
+            // 如果玩家離開點D，重置檢查標記
             if (!isAtD) hasCheckedAtD = false;
         }
 
-        void Lose(float yaw)
+        void Lose(float cameraAngle)
         {
-            Debug.Log($"[Lose] Reached Point D, but camera yaw={yaw:F1} not in [{minYaw}, {maxYaw}]");
+            isGameOver = true;
 
+            Debug.Log($"[遊戲失敗] 到達點D時，攝影機角度={cameraAngle:F1}度，不在允許範圍 [{minAngle}, {maxAngle}] 內");
+
+            // 顯示遊戲結束UI
+            if (gameOverUI != null)
+            {
+                gameOverUI.SetActive(true);
+            }
+            else
+            {
+                Debug.LogWarning("遊戲結束UI未設定！請在Inspector中指定gameOverUI。");
+            }
+
+            // 觸發UnityEvent事件
             onLose?.Invoke();
 
+            // 暫停遊戲時間
             if (pauseTimeOnLose)
                 Time.timeScale = 0f;
         }
