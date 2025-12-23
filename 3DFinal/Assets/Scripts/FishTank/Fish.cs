@@ -1,60 +1,52 @@
 using UnityEngine;
 
 /// <summary>
-/// 魚的碰撞偵測腳本 (最終完美版)
-/// 修正：
-/// 1. 加入「初始位置自動適應」：魚會從您擺放的地方開始游，不會再被強制傳送
-/// 2. 移除互斥力，保持單純隨機轉向
-/// 3. 保留所有自然游動優化
-///
-/// 【新增】
-/// 4. 支援「同一條魚只算一次分」（可開關）
+/// Fish (Clean Final)
+/// - 只保留單一 OnTriggerEnter（避免重複方法簽名導致計分邏輯被覆蓋）
+/// - 支援：只算一次 / 冷卻 / 觸碰變色 / 受驚嚇加速 / 隨機游動 / 邊界限制
+/// - 可選：手可見性 gate（避免 tracking 掉時誤計分）
 /// </summary>
 public class Fish : MonoBehaviour
 {
     [Header("🐟 縮放設定")]
-    [Tooltip("世界縮放比例 (例如 0.062)。這只會影響「速度」和「物理力道」，不會再縮小您的邊界框。")]
+    [Tooltip("世界縮放比例 (例如 0.062)。只影響速度/力道等數值，不會縮小邊界框。")]
     [SerializeField] private float worldScale = 0.062f;
 
-    [Header("基礎屬性")]
+    [Header("計分")]
     [SerializeField] private int scoreValue = 10;
     [SerializeField] private string handTag = "Hand";
+    [Tooltip("連續碰撞時加分冷卻（秒）。若開啟「只算一次」，冷卻主要影響觸碰特效/受驚嚇頻率。")]
+    [SerializeField] private float scoreCooldown = 1.0f;
+
+    [Header("計分規則")]
+    [Tooltip("勾選後：同一條魚在本局只會加分一次。")]
+    [SerializeField] private bool scoreOnlyOnce = false;  // 改為 false，允許每條魚多次計分
+    [Tooltip("若勾選：即使已計分過，也允許觸碰特效/受驚嚇（但不加分）。")]
+    [SerializeField] private bool allowTouchEffectsAfterScored = true;
+
+    [Header("手可見性 gate（建議先關閉用來排錯）")]
+    [Tooltip("勾選後：只有 HandCollisionDetector.IsHandVisible=true 才允許觸碰邏輯（避免 tracking 掉時誤計）。")]
+    [SerializeField] private bool requireHandVisible = false;
+
+    [Header("觸碰特效")]
     [SerializeField] private Color touchColor = Color.yellow;
     [SerializeField] private float colorDuration = 0.3f;
 
-    [Tooltip("連續碰撞時的加分冷卻（秒）。若你開啟「只算一次」，此冷卻主要只影響觸碰特效/受驚嚇的觸發頻率。")]
-    [SerializeField] private float scoreCooldown = 1.0f;
-
-    [Header("計分規則（新增）")]
-    [Tooltip("勾選後：同一條魚在本局遊戲只會加分一次。")]
-    [SerializeField] private bool scoreOnlyOnce = true;
-
-    [Tooltip("如果勾選：即使已經得過分，仍可觸發變色/受驚嚇（但不加分）。")]
-    [SerializeField] private bool allowTouchEffectsAfterScored = true;
-
     [Header("移動設定")]
     [SerializeField] private bool enableMovement = true;
-
     [Tooltip("標準巡航速度")]
     [SerializeField] private float baseMoveSpeed = 2.5f;
-
-    [Tooltip("轉彎靈敏度 (數值越小，轉彎半徑越大，看起來越自然)")]
+    [Tooltip("轉彎靈敏度（越小越自然）")]
     [SerializeField] private float turnSpeed = 0.6f;
-
-    [Tooltip("改變方向的頻率 (秒)")]
+    [Tooltip("改變方向頻率（秒）")]
     [SerializeField] private float changeDirectionInterval = 3.0f;
 
-    [Header("游泳範圍 (絕對 Local 座標)")]
-    [Tooltip("請拖入魚缸中心點 (Empty Object)")]
+    [Header("游泳範圍（Local）")]
+    [Tooltip("魚缸中心點（Empty）。不填會用 parent，沒有 parent 就用自己。")]
     [SerializeField] private Transform swimAnchor;
-
-    [Tooltip("紅框的最小角落 (請看 Scene 視窗調整)")]
     [SerializeField] private Vector3 minBounds = new Vector3(-5f, -2f, -5f);
-
-    [Tooltip("紅框的最大角落 (請看 Scene 視窗調整)")]
     [SerializeField] private Vector3 maxBounds = new Vector3(5f, 2f, 5f);
-
-    [Tooltip("碰到牆壁前的緩衝距離")]
+    [Tooltip("碰到牆前緩衝距離")]
     [SerializeField] private float boundaryBuffer = 0.1f;
 
     [Header("自然感細節")]
@@ -66,17 +58,18 @@ public class Fish : MonoBehaviour
     [SerializeField] private float scaredSpeedMultiplier = 2.5f;
     [SerializeField] private float scaredDuration = 1.5f;
 
-    [Header("調試設定")]
+    [Header("Debug")]
     [SerializeField] private bool enableDebug = true;
+    [Tooltip("只要進 Trigger 就印（用於排錯）；正式可關。")]
+    [SerializeField] private bool debugLogTriggerNames = true;  // 改為 true 以便排錯
 
-    // --- 內部變數 ---
+    // --- 內部狀態 ---
     private Renderer fishRenderer;
     private Color originalColor;
-    private float touchTime = -1f;
     private bool isTouched = false;
-    private float lastScoreTime = -999f;
+    private float touchTime = -1f;
 
-    // 【新增】這條魚是否已經給過分數
+    private float lastScoreTime = -999f;
     private bool hasScored = false;
 
     private Vector3 currentVelocity;
@@ -88,15 +81,16 @@ public class Fish : MonoBehaviour
 
     private void Start()
     {
+        // 檢查 Collider 設置
+        CheckColliderSetup();
+
         fishRenderer = GetComponent<Renderer>();
         if (fishRenderer != null) originalColor = fishRenderer.material.color;
 
         if (swimAnchor == null)
-        {
             swimAnchor = transform.parent != null ? transform.parent : transform;
-        }
 
-        // --- 關鍵修正：自動調整邊界以包含初始位置 ---
+        // 讓邊界包含初始位置（避免一開始就被夾牆/瞬移）
         Vector3 startLocalPos = swimAnchor.InverseTransformPoint(transform.position);
         bool boundsAdjusted = false;
 
@@ -110,10 +104,7 @@ public class Fish : MonoBehaviour
         if (startLocalPos.z > maxBounds.z - boundaryBuffer) { maxBounds.z = startLocalPos.z + boundaryBuffer + 0.1f; boundsAdjusted = true; }
 
         if (boundsAdjusted && enableDebug)
-        {
             Debug.Log($"📏 {gameObject.name} 初始位置在邊界外，已自動擴展游泳範圍以包含初始點。");
-        }
-        // ---------------------------------------------
 
         speedOffset = Random.Range(0f, 100f);
 
@@ -121,9 +112,7 @@ public class Fish : MonoBehaviour
         nextChangeTime = Time.time + Random.Range(0f, changeDirectionInterval);
 
         if (currentVelocity == Vector3.zero)
-        {
             currentVelocity = transform.forward * baseMoveSpeed * worldScale;
-        }
     }
 
     private void Update()
@@ -135,6 +124,138 @@ public class Fish : MonoBehaviour
             isTouched = false;
             if (fishRenderer != null) fishRenderer.material.color = originalColor;
         }
+    }
+
+    // ✅ 單一 Trigger 入口（不要再寫第二個同簽名的方法）
+    private void OnTriggerEnter(Collider other)
+    {
+        if (enableDebug || debugLogTriggerNames)
+            Debug.Log($"[🐟 Fish Trigger] {gameObject.name} 被 {other.name} (Tag: {other.tag}) 觸碰");
+
+        HandleHit(other.gameObject);
+    }
+
+    // 如果你未來把魚改成非 Trigger 碰撞，可保留這個
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (enableDebug)
+            Debug.Log($"[🐟 Fish Collision] {gameObject.name} 與 {collision.gameObject.name} (Tag: {collision.gameObject.tag}) 碰撞");
+
+        HandleHit(collision.gameObject);
+    }
+
+    private void HandleHit(GameObject other)
+    {
+        if (other == null)
+        {
+            if (enableDebug) Debug.LogWarning($"[🐟 Fish] HandleHit: other 為 null");
+            return;
+        }
+
+        string otherTag = other.tag;
+        if (enableDebug)
+            Debug.Log($"[🐟 Fish] {gameObject.name} 處理碰撞：{other.name} (Tag: {otherTag}, 期望: {handTag})");
+
+        if (other.CompareTag(handTag))
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] ✅ 檢測到 Hand Tag！準備觸發 OnTouched()");
+            OnTouched();
+            return;
+        }
+        else
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ Tag 不匹配：{otherTag} != {handTag}");
+        }
+
+        // 可選：魚魚互撞就換方向
+        if (other.CompareTag("Fish"))
+        {
+            ChangeTargetDirection();
+        }
+    }
+
+    public void OnTouched()
+    {
+        if (enableDebug) Debug.Log($"[🐟 Fish] OnTouched() 被調用 - {gameObject.name}");
+
+        // 1) 手可見性 gate（排錯時建議先關）
+        if (requireHandVisible)
+        {
+            bool handVisible = HandCollisionDetector.IsHandVisible;
+            if (enableDebug) Debug.Log($"[🐟 Fish] 手可見性檢查：{handVisible}");
+            if (!handVisible)
+            {
+                if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 手不可見，跳過計分");
+                return;
+            }
+        }
+
+        // 2) 冷卻：避免事件洗爆
+        float timeSinceLastScore = Time.time - lastScoreTime;
+        if (timeSinceLastScore < scoreCooldown)
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 冷卻中：還需等待 {scoreCooldown - timeSinceLastScore:F2} 秒");
+            return;
+        }
+        lastScoreTime = Time.time;
+
+        // 3) 計分判斷：只算一次
+        bool canScore = true;
+        if (scoreOnlyOnce && hasScored)
+        {
+            canScore = false;
+            if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 此魚已計過分（scoreOnlyOnce = true）");
+        }
+
+        if (canScore)
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] ✨ {gameObject.name} 獲得 {scoreValue} 分");
+
+            if (GameManager_fish.Instance != null)
+            {
+                GameManager_fish.Instance.AddScore(scoreValue);
+                if (enableDebug) Debug.Log($"[🐟 Fish] ✅ 分數已添加到 GameManager");
+            }
+            else
+            {
+                Debug.LogError($"[🐟 Fish] ❌ GameManager_fish.Instance 為 null！請確認場景中有 GameManager_fish 物件");
+            }
+
+            hasScored = true;
+        }
+        else
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] (不計分) {gameObject.name} 已經計過分");
+        }
+
+        // 4) 已得分後要不要還有特效/受驚嚇
+        if (!canScore && !allowTouchEffectsAfterScored)
+        {
+            if (enableDebug) Debug.Log($"[🐟 Fish] 跳過特效（已計分且 allowTouchEffectsAfterScored = false）");
+            return;
+        }
+
+        // 5) 觸碰變色
+        if (fishRenderer != null)
+        {
+            fishRenderer.material.color = touchColor;
+            isTouched = true;
+            touchTime = Time.time;
+            if (enableDebug) Debug.Log($"[🐟 Fish] ✅ 魚變色效果已觸發");
+        }
+        else
+        {
+            if (enableDebug) Debug.LogWarning($"[🐟 Fish] ⚠️ fishRenderer 為 null，無法變色");
+        }
+
+        // 6) 受驚嚇：加速 + 換方向
+        isScared = true;
+        scaredEndTime = Time.time + scaredDuration;
+
+        targetDirection = Random.onUnitSphere;
+        currentVelocity = targetDirection * baseMoveSpeed * scaredSpeedMultiplier * worldScale;
+        
+        if (enableDebug) Debug.Log($"[🐟 Fish] ✅ 受驚嚇效果已觸發，加速逃離");
     }
 
     private void HandleMovement()
@@ -166,9 +287,7 @@ public class Fish : MonoBehaviour
         currentVelocity = Vector3.Lerp(currentVelocity, desiredVelocity, dt * steerRate);
 
         if (currentVelocity.sqrMagnitude < 0.0001f)
-        {
             currentVelocity = Random.onUnitSphere * targetSpeed * 0.1f;
-        }
 
         Vector3 nextPos = transform.position + currentVelocity * dt;
 
@@ -176,13 +295,11 @@ public class Fish : MonoBehaviour
         bool hitBound = CheckBounds(ref localPos, ref currentVelocity);
 
         if (hitBound)
-        {
             targetDirection = currentVelocity.normalized;
-        }
 
-        Vector3 finalWorldPos = swimAnchor.TransformPoint(localPos);
-        transform.position = finalWorldPos;
+        transform.position = swimAnchor.TransformPoint(localPos);
 
+        // 面向速度方向（含自然傾斜）
         if (currentVelocity.sqrMagnitude > 0.0001f)
         {
             Vector3 horizontalDir = currentVelocity;
@@ -258,9 +375,7 @@ public class Fish : MonoBehaviour
         }
 
         if (hit)
-        {
             velocity = swimAnchor.TransformDirection(localVel);
-        }
 
         return hit;
     }
@@ -272,63 +387,36 @@ public class Fish : MonoBehaviour
         targetDirection = randomDir.normalized;
     }
 
-    private void OnTriggerEnter(Collider other) { HandleCollision(other.gameObject); }
-    private void OnCollisionEnter(Collision collision) { HandleCollision(collision.gameObject); }
-
-    private void HandleCollision(GameObject other)
+    private void CheckColliderSetup()
     {
-        if (other.CompareTag(handTag))
+        Collider col = GetComponent<Collider>();
+        if (col == null)
         {
-            OnTouched();
+            Debug.LogError($"[🐟 Fish] ❌ {gameObject.name} 沒有 Collider 組件！請添加 Collider（BoxCollider/SphereCollider 等）");
+            return;
         }
-        else if (other.CompareTag("Fish"))
+
+        if (!col.isTrigger)
         {
-            ChangeTargetDirection();
-        }
-    }
-
-    public void OnTouched()
-    {
-        if (!HandCollisionDetector.IsHandVisible) return;
-
-        // 冷卻（避免連續碰撞洗事件）
-        if (Time.time - lastScoreTime < scoreCooldown) return;
-        lastScoreTime = Time.time;
-
-        // --- 計分邏輯（新增）---
-        bool canScore = true;
-        if (scoreOnlyOnce && hasScored) canScore = false;
-
-        if (canScore)
-        {
-            if (enableDebug) Debug.Log($"✨ {gameObject.name} 獲得 {scoreValue} 分");
-
-            if (GameManager_fish.Instance != null)
-                GameManager_fish.Instance.AddScore(scoreValue);
-
-            hasScored = true;
+            Debug.LogWarning($"[🐟 Fish] ⚠️ {gameObject.name} 的 Collider 沒有勾選 Is Trigger！OnTriggerEnter 不會觸發。");
+            if (enableDebug)
+            {
+                Debug.Log($"[🐟 Fish] 💡 建議：勾選 Collider 的 Is Trigger 選項");
+            }
         }
         else
         {
-            if (enableDebug) Debug.Log($"(不計分) {gameObject.name} 已經計過分");
+            if (enableDebug)
+                Debug.Log($"[🐟 Fish] ✅ {gameObject.name} Collider 設置正確（Is Trigger = true）");
         }
 
-        // --- 觸碰特效/受驚嚇（可選：已得分後仍要不要做特效）---
-        if (!canScore && !allowTouchEffectsAfterScored)
-            return;
-
-        if (fishRenderer != null)
+        // 檢查是否有 Rigidbody（Trigger 需要至少一方有 Rigidbody）
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb == null)
         {
-            fishRenderer.material.color = touchColor;
-            isTouched = true;
-            touchTime = Time.time;
+            if (enableDebug)
+                Debug.Log($"[🐟 Fish] ℹ️ {gameObject.name} 沒有 Rigidbody（這是正常的，只要碰撞的另一方有 Rigidbody 即可）");
         }
-
-        isScared = true;
-        scaredEndTime = Time.time + scaredDuration;
-
-        targetDirection = Random.onUnitSphere;
-        currentVelocity = targetDirection * baseMoveSpeed * scaredSpeedMultiplier * worldScale;
     }
 
     private void OnDrawGizmosSelected()
@@ -342,6 +430,7 @@ public class Fish : MonoBehaviour
             maxBounds.y - minBounds.y,
             maxBounds.z - minBounds.z
         );
+
         Vector3 center = new Vector3(
             (maxBounds.x + minBounds.x) * 0.5f,
             (maxBounds.y + minBounds.y) * 0.5f,
@@ -349,5 +438,21 @@ public class Fish : MonoBehaviour
         );
 
         Gizmos.DrawWireCube(center, size);
+
+        // 繪製 Collider 範圍（如果有的話）
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            Gizmos.matrix = Matrix4x4.identity;
+            Gizmos.color = Color.yellow;
+            if (col is BoxCollider boxCol)
+            {
+                Gizmos.DrawWireCube(transform.position + boxCol.center, boxCol.size);
+            }
+            else if (col is SphereCollider sphereCol)
+            {
+                Gizmos.DrawWireSphere(transform.position + sphereCol.center, sphereCol.radius);
+            }
+        }
     }
 }
