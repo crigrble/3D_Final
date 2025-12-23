@@ -14,12 +14,23 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
   public class HandLandmarkerRunner : VisionTaskApiRunner<HandLandmarker>
   {
     [SerializeField] private HandLandmarkerResultAnnotationController _handLandmarkerResultAnnotationController;
+    [Header("Hand Model Driver (optional)")]
+    [SerializeField] private int driveHandIndex = 0; // 0=第一隻手
+    [SerializeField] private HandCollisionDetector handDriver; // 拖你的 HandCollisionDetector 物件進來
 
     private Experimental.TextureFramePool _textureFramePool;
 
     public readonly HandLandmarkDetectionConfig config = new HandLandmarkDetectionConfig();
 
-    public override void Stop()
+        private void Awake()
+        {
+            if (handDriver == null)
+            {
+                handDriver = FindObjectOfType<HandCollisionDetector>();
+            }
+        }
+
+        public override void Stop()
     {
       base.Stop();
       _textureFramePool?.Dispose();
@@ -168,6 +179,14 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
 
         private void OnHandLandmarkDetectionOutput(HandLandmarkerResult result, Image image, long timestamp)
         {
+            // Push landmarks to HandCollisionDetector (thread-safe buffer inside it)
+            if (handDriver != null && result.handLandmarks != null && result.handLandmarks.Count > driveHandIndex)
+            {
+                // 只傳第一隻手的 21 點
+                handDriver.CheckHandCollision(result.handLandmarks[driveHandIndex]);
+            }
+
+
             // 每 10 次印一次，避免洗版
             _dbgFrameSkip++;
             if (_dbgFrameSkip % 10 == 0)
