@@ -23582,12 +23582,10 @@ MonoBehaviour:
   - {fileID: 370648839}
   - {fileID: 87425819}
   - {fileID: 211633870}
-  moveSpeed: 2
-  rotateSpeed: 8
-  arriveDistance: 0.25
   waitTimeAtA: 1.5
   waitTimeAtD: 2
   turnSpeed: 360
+  cameraTransform: {fileID: 330585546}
   playerLight: {fileID: 174805594}
 --- !u!1001 &1571520796
 PrefabInstance:
