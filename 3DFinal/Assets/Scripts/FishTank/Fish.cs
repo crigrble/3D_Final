@@ -5,6 +5,7 @@ using UnityEngine;
 /// - 只保留單一 OnTriggerEnter（避免重複方法簽名導致計分邏輯被覆蓋）
 /// - 支援：只算一次 / 冷卻 / 觸碰變色 / 受驚嚇加速 / 隨機游動 / 邊界限制
 /// - 可選：手可見性 gate（避免 tracking 掉時誤計分）
+/// - 可選：相機角度檢查（確保玩家在摸魚狀態才能計分）
 /// </summary>
 public class Fish : MonoBehaviour
 {
@@ -23,6 +24,14 @@ public class Fish : MonoBehaviour
     [SerializeField] private bool scoreOnlyOnce = false;  // 改為 false，允許每條魚多次計分
     [Tooltip("若勾選：即使已計分過，也允許觸碰特效/受驚嚇（但不加分）。")]
     [SerializeField] private bool allowTouchEffectsAfterScored = true;
+
+    [Header("相機角度檢查")]
+    [Tooltip("勾選後：只有當主攝影機 rotationY < -50 度時才能計分（確保玩家在摸魚狀態）")]
+    [SerializeField] private bool requireCameraAngle = true;
+    [Tooltip("允許計分的最大相機角度（rotationY 必須小於此值才能計分）")]
+    [SerializeField] private float maxCameraAngleForScore = -50f;
+    [Tooltip("主攝影機 Transform（留空會自動尋找 Camera.main）")]
+    [SerializeField] private Transform mainCamera;
 
     [Header("手可見性 gate（建議先關閉用來排錯）")]
     [Tooltip("勾選後：只有 HandCollisionDetector.IsHandVisible=true 才允許觸碰邏輯（避免 tracking 掉時誤計）。")]
@@ -83,6 +92,12 @@ public class Fish : MonoBehaviour
     {
         // 檢查 Collider 設置
         CheckColliderSetup();
+
+        // 自動尋找主攝影機
+        if (mainCamera == null && Camera.main != null)
+        {
+            mainCamera = Camera.main.transform;
+        }
 
         fishRenderer = GetComponent<Renderer>();
         if (fishRenderer != null) originalColor = fishRenderer.material.color;
@@ -190,7 +205,40 @@ public class Fish : MonoBehaviour
             }
         }
 
-        // 2) 冷卻：避免事件洗爆
+        // 2) 相機角度檢查：只有摸魚狀態才能計分
+        if (requireCameraAngle)
+        {
+            if (mainCamera == null)
+            {
+                if (Camera.main != null)
+                {
+                    mainCamera = Camera.main.transform;
+                }
+                else
+                {
+                    if (enableDebug) Debug.LogWarning($"[🐟 Fish] ⚠️ 找不到主攝影機，跳過角度檢查");
+                }
+            }
+
+            if (mainCamera != null)
+            {
+                float cameraAngleY = NormalizeSignedAngle(mainCamera.eulerAngles.y);
+                bool isSlacking = cameraAngleY < maxCameraAngleForScore;
+
+                if (enableDebug)
+                {
+                    Debug.Log($"[🐟 Fish] 相機角度檢查：rotationY = {cameraAngleY:F1}° (需要 < {maxCameraAngleForScore}°)");
+                }
+
+                if (!isSlacking)
+                {
+                    if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 相機角度不符合摸魚條件（{cameraAngleY:F1}° >= {maxCameraAngleForScore}°），無法計分");
+                    // 注意：這裡不 return，因為可能還需要觸發特效
+                }
+            }
+        }
+
+        // 3) 冷卻：避免事件洗爆
         float timeSinceLastScore = Time.time - lastScoreTime;
         if (timeSinceLastScore < scoreCooldown)
         {
@@ -199,7 +247,7 @@ public class Fish : MonoBehaviour
         }
         lastScoreTime = Time.time;
 
-        // 3) 計分判斷：只算一次
+        // 4) 計分判斷：只算一次
         bool canScore = true;
         if (scoreOnlyOnce && hasScored)
         {
@@ -207,7 +255,22 @@ public class Fish : MonoBehaviour
             if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 此魚已計過分（scoreOnlyOnce = true）");
         }
 
-        if (canScore)
+        // 5) 檢查是否滿足計分條件（相機角度 + 只算一次檢查）
+        bool canActuallyScore = canScore;
+        
+        // 如果啟用了相機角度檢查，需要再次確認
+        if (requireCameraAngle && mainCamera != null)
+        {
+            float cameraAngleY = NormalizeSignedAngle(mainCamera.eulerAngles.y);
+            canActuallyScore = canScore && (cameraAngleY < maxCameraAngleForScore);
+            
+            if (!canActuallyScore && canScore)
+            {
+                if (enableDebug) Debug.Log($"[🐟 Fish] ⚠️ 相機角度不符合摸魚條件，無法計分");
+            }
+        }
+
+        if (canActuallyScore)
         {
             if (enableDebug) Debug.Log($"[🐟 Fish] ✨ {gameObject.name} 獲得 {scoreValue} 分");
 
@@ -221,21 +284,26 @@ public class Fish : MonoBehaviour
                 Debug.LogError($"[🐟 Fish] ❌ GameManager_fish.Instance 為 null！請確認場景中有 GameManager_fish 物件");
             }
 
-            hasScored = true;
+            // 只有在 scoreOnlyOnce = true 時才設置 hasScored
+            // 這樣即使 prefab 中設置錯誤，也不會影響多次計分
+            if (scoreOnlyOnce)
+            {
+                hasScored = true;
+            }
         }
         else
         {
             if (enableDebug) Debug.Log($"[🐟 Fish] (不計分) {gameObject.name} 已經計過分");
         }
 
-        // 4) 已得分後要不要還有特效/受驚嚇
-        if (!canScore && !allowTouchEffectsAfterScored)
+        // 6) 已得分後要不要還有特效/受驚嚇
+        if (!canActuallyScore && !allowTouchEffectsAfterScored)
         {
             if (enableDebug) Debug.Log($"[🐟 Fish] 跳過特效（已計分且 allowTouchEffectsAfterScored = false）");
             return;
         }
 
-        // 5) 觸碰變色
+        // 7) 觸碰變色
         if (fishRenderer != null)
         {
             fishRenderer.material.color = touchColor;
@@ -248,7 +316,7 @@ public class Fish : MonoBehaviour
             if (enableDebug) Debug.LogWarning($"[🐟 Fish] ⚠️ fishRenderer 為 null，無法變色");
         }
 
-        // 6) 受驚嚇：加速 + 換方向
+        // 8) 受驚嚇：加速 + 換方向
         isScared = true;
         scaredEndTime = Time.time + scaredDuration;
 
@@ -385,6 +453,16 @@ public class Fish : MonoBehaviour
         Vector3 randomDir = Random.onUnitSphere;
         randomDir.y *= 0.3f;
         targetDirection = randomDir.normalized;
+    }
+
+    /// <summary>
+    /// 將角度正規化到 -180~180 度範圍
+    /// </summary>
+    static float NormalizeSignedAngle(float angleDeg)
+    {
+        angleDeg %= 360f;
+        if (angleDeg > 180f) angleDeg -= 360f;
+        return angleDeg;
     }
 
     private void CheckColliderSetup()

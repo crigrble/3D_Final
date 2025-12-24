@@ -32,6 +32,10 @@ namespace StarterAssets
         [Tooltip("重新開始時要載入的場景名稱（留空則重新載入當前場景）")]
         public string restartSceneName = "";
 
+        [Header("調試")]
+        [Tooltip("啟用詳細的調試日誌")]
+        public bool enableDebug = true;
+
         bool hasCheckedAtD = false;
         bool isGameOver = false;
 
@@ -55,22 +59,60 @@ namespace StarterAssets
             // 如果已經遊戲結束，不再檢查
             if (isGameOver) return;
 
-            if (!patrol || !mainCamera) return;
+            if (!patrol || !mainCamera)
+            {
+                if (enableDebug && Time.frameCount % 60 == 0) // 每60帧打印一次，避免刷屏
+                {
+                    Debug.LogWarning($"[GameOver] 缺少必要引用：patrol={patrol != null}, mainCamera={mainCamera != null}");
+                }
+                return;
+            }
 
             var points = patrol.patrolPoints;
-            if (points == null || points.Length == 0) return;
+            if (points == null || points.Length == 0)
+            {
+                if (enableDebug && Time.frameCount % 60 == 0)
+                {
+                    Debug.LogWarning("[GameOver] patrolPoints 為空或 null");
+                }
+                return;
+            }
 
             // Point D = 最後一個點
             Transform pointD = points[points.Length - 1];
-            if (!pointD) return;
+            if (!pointD)
+            {
+                if (enableDebug) Debug.LogError("[GameOver] pointD 為 null！");
+                return;
+            }
 
-            // 檢查 BOSS（PatrolController 所在的 GameObject）的位置
+            // 方法1：檢查 BOSS（PatrolController 所在的 GameObject）的位置
             Vector3 bossPosition = patrol.transform.position;
             Vector3 pointDPosition = pointD.position;
             bossPosition.y = 0f;
             pointDPosition.y = 0f;
 
-            bool isBossAtD = Vector3.Distance(bossPosition, pointDPosition) <= arriveDistance;
+            float distanceToD = Vector3.Distance(bossPosition, pointDPosition);
+            bool isBossAtDByDistance = distanceToD <= arriveDistance;
+
+            // 方法2：使用 PatrolController 的公開方法檢查狀態（更可靠）
+            bool isBossAtDByState = patrol.IsWaitingAtPointD();
+
+            if (enableDebug && Time.frameCount % 30 == 0)
+            {
+                int currentIndex = patrol.GetCurrentPatrolIndex();
+                Debug.Log($"[GameOver] Patrol狀態: isOnPatrol={patrol.IsOnPatrol()}, currentIndex={currentIndex}/{points.Length-1}, isWaitingAtD={isBossAtDByState}");
+            }
+
+            // 使用兩種方法中的任一種來判斷（優先使用狀態檢查）
+            bool isBossAtD = isBossAtDByState || isBossAtDByDistance;
+
+            // 調試信息
+            if (enableDebug && Time.frameCount % 30 == 0) // 每30帧打印一次
+            {
+                float cameraAngle = NormalizeSignedAngle(mainCamera.eulerAngles.y);
+                Debug.Log($"[GameOver] BOSS距離點D: {distanceToD:F3}m (需要 <= {arriveDistance}m), 相機角度: {cameraAngle:F1}°, 已檢查: {hasCheckedAtD}, 在點D: {isBossAtD}");
+            }
 
             if (isBossAtD && !hasCheckedAtD)
             {
@@ -80,14 +122,37 @@ namespace StarterAssets
                 float cameraAngle = NormalizeSignedAngle(mainCamera.eulerAngles.y); // -180~180
                 bool isAngleValid = (cameraAngle >= minAngle && cameraAngle <= maxAngle); // [-30, 0]
 
+                if (enableDebug)
+                {
+                    Debug.Log($"[GameOver] ✅ BOSS 到達點D！相機角度: {cameraAngle:F1}° (允許範圍: [{minAngle}, {maxAngle}]°), 有效: {isAngleValid}");
+                }
+
                 if (!isAngleValid)
                 {
+                    if (enableDebug)
+                    {
+                        Debug.LogWarning($"[GameOver] ⚠️ 觸發遊戲失敗：相機角度 {cameraAngle:F1}° 不在工作範圍內！");
+                    }
                     Lose(cameraAngle, "BOSS 到達點D時，玩家攝影機角度不在工作範圍內（摸魚被發現）");
+                }
+                else
+                {
+                    if (enableDebug)
+                    {
+                        Debug.Log($"[GameOver] ✅ 相機角度在允許範圍內，遊戲繼續");
+                    }
                 }
             }
 
             // 如果 BOSS 離開點D，重置檢查標記
-            if (!isBossAtD) hasCheckedAtD = false;
+            if (!isBossAtD && hasCheckedAtD)
+            {
+                hasCheckedAtD = false;
+                if (enableDebug)
+                {
+                    Debug.Log("[GameOver] BOSS 離開點D，重置檢查標記");
+                }
+            }
         }
 
         /// <summary>
