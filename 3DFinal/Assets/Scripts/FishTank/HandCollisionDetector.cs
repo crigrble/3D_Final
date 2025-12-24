@@ -17,37 +17,23 @@ public class HandCollisionDetector : MonoBehaviour
     [Header("碰撞偵測點（可選）")]
     [SerializeField] private bool useMultipleColliders = false;
     [SerializeField] private Transform[] colliderPoints;
-
-    [Header("移動範圍限制（建議：關掉這裡的 Clamp，交給你 Wrist 上的 ClampInsideOrientedBox）")]
-    public BoxCollider movementBounds;
-    public bool clampToBounds = false;     // ✅ 改：預設關掉，避免雙重 Clamp
-    public float boundsPadding = 0.02f;
-
+    
     [Header("位置設定")]
-    [SerializeField] private float positionScaleX = 8.0f;
-    [SerializeField] private float positionScaleY = 8.0f;
-    [SerializeField] private float depthScale = 15.0f;
-
-    [SerializeField] private float baseHandSize = 0.15f;
-    [SerializeField] private Vector3 handOffset = Vector3.zero;
-    [SerializeField] private float smoothing = 0.5f;
-
-    [Header("軸向反轉（新增：方向相反就用勾勾修）")]
-    [SerializeField] private bool invertX = false; // 左右
-    [SerializeField] private bool invertY = false; // 上下
-    [SerializeField] private bool invertZ = false; // 深度
-
+    [SerializeField] private float depthScale = 0.6f;  // 深度變化範圍（增大以覆蓋整個魚缸）
+    [SerializeField] private float baseHandSize = 0.22f;  // 基準手掌大小（調高使深度變化更早開始）
+    [SerializeField] private float smoothing = 0.5f;  // 平滑度（提高以增加靈敏度）
+    
     [Header("旋轉設定")]
     [SerializeField] private bool enableRotation = true;
-    [SerializeField] private bool onlyZAxisRotation = false;
-    [SerializeField] private float rotationSmoothness = 0.3f;
-    [SerializeField] private Vector3 rotationOffset = new Vector3(0f, 0f, 0f);
-    [SerializeField] private Vector3 rotationClamp = new Vector3(180f, 180f, 180f);
+    [SerializeField] private bool onlyZAxisRotation = true;
+    [SerializeField] private float rotationSmoothness = 0.1f;  // 旋轉平滑度（降低以減少灵敏度）
+    [SerializeField] private float rotationDeadzone = 3f;  // 旋轉死區（度），小於此角度的變化會被忽略
+    [SerializeField] private Vector3 rotationOffset = new Vector3(90f, 180f, 0f);
+    [SerializeField] private Vector3 rotationClamp = new Vector3(15f, 15f, 60f);  // Z轴旋转限制角度
 
     [Header("調試設定")]
     [SerializeField] private bool enableDebug = true;
     [SerializeField] private bool showGizmos = true;
-    [SerializeField] private bool logPositions = true;
     [SerializeField] private Color gizmoColor = Color.cyan;
 
     private HandLandmarkerRunner _handLandmarkerRunner;
@@ -69,22 +55,10 @@ public class HandCollisionDetector : MonoBehaviour
         if (mainCamera == null) mainCamera = Camera.main;
 
         ValidateBoneSetup();
-
-        // ✅ 新增：若 handOffset 沒設定，就用當前 handRoot 位置當基準（避免以世界原點為中心漂移）
-        if (handRoot != null && handOffset == Vector3.zero)
-        {
-            handOffset = handRoot.position;
-            if (enableDebug) Debug.Log($"✅ handOffset 自動設為 handRoot 起始位置：{handOffset}");
-        }
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            CalibrateDepth();
-        }
-
         if (_hasNewData)
         {
             lock (_dataLock)
@@ -114,21 +88,8 @@ public class HandCollisionDetector : MonoBehaviour
         }
     }
 
-    private void CalibrateDepth()
-    {
-        if (_latestHandLandmarks.landmarks == null || _latestHandLandmarks.landmarks.Count < 21)
-        {
-            Debug.LogWarning("⚠️ 無法校正：沒有偵測到手");
-            return;
-        }
 
-        var wrist = _latestHandLandmarks.landmarks[0];
-        var middle = _latestHandLandmarks.landmarks[9];
-
-        baseHandSize = CalculateHandSize(wrist, middle);
-        Debug.Log($"✅ 深度基準已校正！現在手掌大小 {baseHandSize:F4} 被視為「原點深度」。");
-    }
-
+    
     private void ValidateBoneSetup()
     {
         if (handRoot == null) Debug.LogError("❌ Hand Root 未綁定！");
@@ -163,12 +124,17 @@ public class HandCollisionDetector : MonoBehaviour
         }
         else
         {
-            var wristLandmark = handLandmarks.landmarks[0];
-            var middleBaseLandmark = handLandmarks.landmarks[9];
-
+            // 使用中指根部位置，計算手掌大小
+            var wristLandmark = handLandmarks.landmarks[0];  // 手腕
+            var middleBaseLandmark = handLandmarks.landmarks[9]; // 中指根部
+            
+            // 計算手掌大小（用於深度估算）
             float handSize = CalculateHandSize(wristLandmark, middleBaseLandmark);
+            
+            // 基於手掌大小計算深度偏移
             float depthOffset = CalculateDepthFromHandSize(handSize);
-
+            
+            // 計算手部位置（使用中指根部）
             Vector3 targetPos = LandmarkToWorldPosition(middleBaseLandmark, depthOffset);
             UpdateHandRootPosition(targetPos);
 
@@ -188,40 +154,68 @@ public class HandCollisionDetector : MonoBehaviour
             landmarkWorldPositions[i] = LandmarkToWorldPosition(landmark);
         }
     }
+    
+    // 計算手掌大小（手腕到中指根部的距離）
+    private float CalculateHandSize(Mediapipe.Tasks.Components.Containers.NormalizedLandmark wrist,
+                                    Mediapipe.Tasks.Components.Containers.NormalizedLandmark middleBase)
+    {
+        float dx = middleBase.x - wrist.x;
+        float dy = middleBase.y - wrist.y;
+        float dz = middleBase.z - wrist.z;
+        return Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    
+    // 基於手掌大小計算深度（手掌越大=越近，越小=越遠）
+    private float CalculateDepthFromHandSize(float handSize)
+    {
+        // 手掌大小比例轉換為深度偏移
+        float depthRatio = baseHandSize / handSize; // 比例：1.0 = 基準距離
+        
+        // 限制比例範圍使變化更平滑（0.5 到 2.0 之間）
+        depthRatio = Mathf.Clamp(depthRatio, 0.5f, 2.0f);
+        
+        // 手大（近）→ depth < 0 → 往前（淺），手小（遠）→ depth > 0 → 往後（深）
+        float depth = (depthRatio - 1.0f) * depthScale;
+        return depth;
+    }
 
-    // ✅ 用「魚缸/Bounds 的座標系」定義左右/上下/深度
-    // ✅ 新增 invertX/Y/Z：方向相反就勾
     private Vector3 LandmarkToWorldPosition(Mediapipe.Tasks.Components.Containers.NormalizedLandmark landmark, float depthOffset = 0f)
     {
-        float rawX = (landmark.x - 0.5f);
-        float rawY = (landmark.y - 0.5f);
-
-        // 反轉：這三個勾勾只會影響方向，不改尺度
-        if (invertX) rawX *= -1f;
-        if (invertY) rawY *= -1f;
-        if (invertZ) depthOffset *= -1f;
-
-        Transform refT = (movementBounds != null) ? movementBounds.transform : mainCamera.transform;
-
-        Vector3 moveX = refT.right * (rawX * positionScaleX);      // 左右
-        Vector3 moveY = refT.up * (-rawY * positionScaleY);        // 上下（這裡保留 -rawY 是因為影像Y通常向下為正）
-        Vector3 moveZ = refT.forward * (depthOffset);              // 深度（藍色Z）
-
-        return handOffset + moveX + moveY + moveZ;
+        // HandZone 舞台範圍（寫死）
+        float stageMinX = 4.005f;
+        float stageMaxX = 4.893f;
+        float stageCenterX = 4.499f;  // 舞台中心X（預設在中央）
+        float stageMinY = 0f;
+        float stageMaxY = 1.361f;
+        float stageMinZ = -2.461f;
+        float stageMaxZ = -1.653f;
+        
+        // 正確映射：
+        // 手左右(landmark.x) → worldZ 左右（反向）
+        // 手上下(landmark.y) → worldY 上下（反向）
+        // 手前後(depthOffset) → worldX 前後
+        float worldX = stageCenterX + depthOffset;                             // 手大小 → 前後深度
+        float worldY = Mathf.Lerp(stageMaxY, stageMinY, landmark.y);          // 手上下 → 上下（反向）
+        float worldZ = Mathf.Lerp(stageMinZ, stageMaxZ, landmark.x);          // 手左右 → 左右（反向）
+        
+        return new Vector3(worldX, worldY, worldZ);
     }
 
     private void UpdateHandRootPosition(Vector3 targetPos)
     {
         if (handRoot == null) return;
-
-        // 若你堅持也要這裡 clamp，才打開 clampToBounds
-        if (clampToBounds && movementBounds != null)
-        {
-            targetPos = ClampToBoxBounds(targetPos, movementBounds.bounds, boundsPadding);
-        }
-
+        
+        // 直接寫死邊界限制（根據 HandZone 的 bounds）
+        // 世界座標：X=左右, Y=前後(深度), Z=上下
+        targetPos = new Vector3(
+            Mathf.Clamp(targetPos.x, 4.105f, 4.893f),   // X: 左右
+            Mathf.Clamp(targetPos.y, 0.933f, 1.361f),   // Y: 前後(深度)
+            Mathf.Clamp(targetPos.z, -2.461f, -1.653f)  // Z: 上下
+        );
+        
         Vector3 newPos = Vector3.Lerp(handRoot.position, targetPos, smoothing);
 
+        // 使用 Rigidbody.MovePosition 以支持物理碰撞
         Rigidbody rb = handRoot.GetComponent<Rigidbody>();
         if (rb != null && !rb.isKinematic)
         {
@@ -235,101 +229,127 @@ public class HandCollisionDetector : MonoBehaviour
 
     private void UpdateHandWithColliders()
     {
-        Vector3 targetWrist = landmarkWorldPositions[0];
-
-        if (clampToBounds && movementBounds != null)
-        {
-            targetWrist = ClampToBoxBounds(targetWrist, movementBounds.bounds, boundsPadding);
-        }
-
-        handRoot.position = Vector3.Lerp(handRoot.position, targetWrist, smoothing);
-
+        // 更新手腕位置
+        handRoot.position = Vector3.Lerp(handRoot.position, landmarkWorldPositions[0], smoothing);
+        
+        // 更新額外的碰撞點位置（如果有的話）
         if (colliderPoints != null)
         {
             for (int i = 0; i < colliderPoints.Length; i++)
             {
                 if (colliderPoints[i] != null && i < landmarkWorldPositions.Length)
                 {
-                    Vector3 p = landmarkWorldPositions[i];
-                    if (clampToBounds && movementBounds != null)
-                    {
-                        p = ClampToBoxBounds(p, movementBounds.bounds, boundsPadding);
-                    }
-                    colliderPoints[i].position = p;
+                    colliderPoints[i].position = landmarkWorldPositions[i];
                 }
             }
         }
     }
 
-    private Vector3 ClampToBoxBounds(Vector3 pos, Bounds b, float pad)
-    {
-        return new Vector3(
-            Mathf.Clamp(pos.x, b.min.x + pad, b.max.x - pad),
-            Mathf.Clamp(pos.y, b.min.y + pad, b.max.y - pad),
-            Mathf.Clamp(pos.z, b.min.z + pad, b.max.z - pad)
-        );
-    }
-
-    private float CalculateHandSize(Mediapipe.Tasks.Components.Containers.NormalizedLandmark wrist,
-                                    Mediapipe.Tasks.Components.Containers.NormalizedLandmark middleBase)
-    {
-        float dx = middleBase.x - wrist.x;
-        float dy = middleBase.y - wrist.y;
-        float dz = middleBase.z - wrist.z;
-        return Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
-    }
-
-    private float CalculateDepthFromHandSize(float handSize)
-    {
-        float depthRatio = baseHandSize / handSize;
-        float depth = (depthRatio - 1.0f) * depthScale;
-        return depth;
-    }
-
     private Quaternion CalculateHandRotation(Mediapipe.Tasks.Components.Containers.NormalizedLandmarks handLandmarks)
     {
-        var wrist = handLandmarks.landmarks[0];
-        var middleBase = handLandmarks.landmarks[9];
-        var indexBase = handLandmarks.landmarks[5];
-
-        Vector3 fingerDirection = new Vector3(middleBase.x - wrist.x, middleBase.y - wrist.y, middleBase.z - wrist.z).normalized;
-        Vector3 palmSide = new Vector3(indexBase.x - wrist.x, indexBase.y - wrist.y, indexBase.z - wrist.z).normalized;
+        // 使用三個關鍵點定義手掌平面
+        var wrist = handLandmarks.landmarks[0];      // 手腕
+        var middleBase = handLandmarks.landmarks[9]; // 中指根部
+        var indexBase = handLandmarks.landmarks[5];  // 食指根部
+        
+        // 計算手指方向（手腕 → 中指根部）= 手指朝向
+        Vector3 fingerDirection = new Vector3(
+            middleBase.x - wrist.x,
+            middleBase.y - wrist.y,
+            middleBase.z - wrist.z
+        ).normalized;
+        
+        // 計算手掌橫向（手腕 → 食指根部）
+        Vector3 palmSide = new Vector3(
+            indexBase.x - wrist.x,
+            indexBase.y - wrist.y,
+            indexBase.z - wrist.z
+        ).normalized;
+        
+        // 計算手掌法向量（垂直於手掌平面）
         Vector3 palmNormal = Vector3.Cross(fingerDirection, palmSide).normalized;
+        
+        // 重新計算正交的橫向向量
         palmSide = Vector3.Cross(palmNormal, fingerDirection).normalized;
-
+        
+        // 轉換到 Unity 座標系（考慮 Y 軸反轉）
         Vector3 unityUp = new Vector3(fingerDirection.x, -fingerDirection.y, -fingerDirection.z);
-        Vector3 unityForward = new Vector3(-palmNormal.x, palmNormal.y, -palmNormal.z);
-
+        Vector3 unityForward = new Vector3(-palmNormal.x, palmNormal.y, -palmNormal.z);  // 修正左右方向
+        
+        // 建立旋轉（使用 LookRotation，Forward 和 Up）
         if (unityForward.sqrMagnitude > 0.01f && unityUp.sqrMagnitude > 0.01f)
         {
-            Quaternion cameraRot = mainCamera.transform.rotation;
-            Quaternion handRot = Quaternion.LookRotation(unityForward, unityUp);
-            return cameraRot * handRot * Quaternion.Euler(rotationOffset);
+            Quaternion rotation = Quaternion.LookRotation(unityForward, unityUp);
+            return rotation * Quaternion.Euler(rotationOffset);
         }
-
-        return handRoot.rotation;
+        
+        return handRoot.rotation; // 如果計算失敗，保持當前旋轉
     }
 
+    // 更新手部旋轉（平滑過渡）
     private void UpdateHandRotation(Quaternion targetRotation)
     {
         if (handRoot == null) return;
-
+        
         Quaternion newRotation;
+        
         if (onlyZAxisRotation)
         {
+            // 只保留 Z 軸旋轉
             Vector3 targetEuler = targetRotation.eulerAngles;
             Vector3 currentEuler = handRoot.rotation.eulerAngles;
-            float targetZ = Mathf.LerpAngle(currentEuler.z, targetEuler.z, rotationSmoothness);
-            newRotation = Quaternion.Euler(currentEuler.x, currentEuler.y, targetZ);
+            
+            // 反轉目標 Z 軸角度
+            float invertedTargetZ = 360f - targetEuler.z;
+            
+            // 計算角度差異（死區檢查）
+            float angleDiff = Mathf.DeltaAngle(currentEuler.z, invertedTargetZ);
+            
+            // 如果角度變化小於死區，不更新旋轉
+            if (Mathf.Abs(angleDiff) < rotationDeadzone)
+            {
+                return;
+            }
+            
+            float targetZ = Mathf.LerpAngle(currentEuler.z, invertedTargetZ, rotationSmoothness);
+            
+            // 將角度轉換到 -180 ~ 180 範圍
+            float z = targetZ > 180f ? targetZ - 360f : targetZ;
+            
+            // 限制 Z 軸旋轉幅度
+            z = Mathf.Clamp(z, -rotationClamp.z, rotationClamp.z);
+            
+            newRotation = Quaternion.Euler(currentEuler.x, currentEuler.y, z);
         }
         else
         {
-            newRotation = Quaternion.Slerp(handRoot.rotation, targetRotation, rotationSmoothness);
+            // 完整旋轉但限制角度範圍
+            Quaternion smoothRotation = Quaternion.Slerp(handRoot.rotation, targetRotation, rotationSmoothness);
+            Vector3 euler = smoothRotation.eulerAngles;
+            
+            // 將角度轉換到 -180 ~ 180 範圍
+            float x = euler.x > 180f ? euler.x - 360f : euler.x;
+            float y = euler.y > 180f ? euler.y - 360f : euler.y;
+            float z = euler.z > 180f ? euler.z - 360f : euler.z;
+            
+            // 限制旋轉幅度
+            x = Mathf.Clamp(x, -rotationClamp.x, rotationClamp.x);
+            y = Mathf.Clamp(y, -rotationClamp.y, rotationClamp.y);
+            z = z; // Z 軸不限制
+            
+            newRotation = Quaternion.Euler(x, y, z);
         }
-
+        
+        // 使用 Rigidbody.MoveRotation 以支持物理碰撞
         Rigidbody rb = handRoot.GetComponent<Rigidbody>();
-        if (rb != null && !rb.isKinematic) rb.MoveRotation(newRotation);
-        else handRoot.rotation = newRotation;
+        if (rb != null && !rb.isKinematic)
+        {
+            rb.MoveRotation(newRotation);
+        }
+        else
+        {
+            handRoot.rotation = newRotation;
+        }
     }
 
     private void OnDrawGizmos()

@@ -99,6 +99,7 @@ public class GameManager_fish : MonoBehaviour
             scoreText.text = "Score: " + currentScore;
     }
 
+
     private void UpdateResultUI()
     {
         if (resultScoreText != null)

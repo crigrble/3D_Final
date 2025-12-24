@@ -74,6 +74,8 @@ namespace TMPro.Examples
                 dummyTarget = new GameObject("Camera Target").transform;
                 CameraTarget = dummyTarget;
             }
+
+
         }
 
         // Update is called once per frame
@@ -118,6 +120,8 @@ namespace TMPro.Examples
                 }
 
             }
+
+
 
         }
 
