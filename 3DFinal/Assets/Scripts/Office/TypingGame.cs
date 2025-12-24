@@ -6,8 +6,8 @@ public class TypingGame : MonoBehaviour
     public TextMeshProUGUI targetText;
 
     [TextArea]
-    public string[] sentences;       
-    private int sentenceIndex = 0;  
+    public string[] sentences;
+    private int sentenceIndex = 0;
 
     private string currentSentence;
     private int index = 0;
@@ -15,28 +15,42 @@ public class TypingGame : MonoBehaviour
 
     void Start()
     {
+        if (targetText != null)
+        {
+            targetText.enableWordWrapping = true;
+        }
+
         if (sentences.Length > 0)
             StartTyping(sentences[0]);
-
     }
 
     public void StartTyping(string text)
     {
-        currentSentence = text.ToLower();
+        // 1. è³‡æ–™å±¤ï¼šä¿ç•™æ›è¡Œï¼Œä½†çµ±ä¸€æ ¼å¼ç‚º \n (Code 10)
+        string cleanText = text;
+        cleanText = cleanText.Replace("\r\n", "\n").Replace("\r", "\n");
+        cleanText = cleanText.Trim();
+        currentSentence = cleanText.ToLower(); // ä¾éœ€æ±‚è½‰å°å¯«
+
         index = 0;
         isTyping = true;
-
         targetText.text = currentSentence;
+
+        // Debug: å°å‡ºé¡Œç›®ä¸­æ¯å€‹å­—çš„ç·¨ç¢¼
+        // string debugCodes = "";
+        // foreach (char c in currentSentence)
+        // {
+        //     if (c == '\n') debugCodes += "[Enter/10]";
+        //     else debugCodes += $"{(int)c}|";
+        // }
+        // Debug.Log($"[é¡Œç›®è¼‰å…¥] ç·¨ç¢¼æª¢æŸ¥: {debugCodes}");
     }
+
     public float GetRemainingWorkRatio()
     {
-        // ¨S¦³¥y¤l´N·í§@¨S¦³¤u§@
         if (sentences == null || sentences.Length == 0) return 0f;
-
-        // ¥ş³¡°µ§¹
         if (sentenceIndex >= sentences.Length) return 0f;
 
-        // ­pºâÁ`¦r¼Æ¡]¥ş³¡¥y¤lªºªø«×¥[Á`¡^
         int totalChars = 0;
         for (int i = 0; i < sentences.Length; i++)
         {
@@ -45,8 +59,6 @@ public class TypingGame : MonoBehaviour
         }
         if (totalChars <= 0) return 0f;
 
-        // ­pºâ¤w§¹¦¨¦r¼Æ¡G
-        // 1) §¹¦¨ªº¥y¤l¡G¾ã¥yªø«×³£ºâ§¹¦¨
         int doneChars = 0;
         for (int i = 0; i < sentenceIndex; i++)
         {
@@ -54,11 +66,8 @@ public class TypingGame : MonoBehaviour
                 doneChars += sentences[i].Length;
         }
 
-        // 2) ¥Ø«e¥¿¦b¥´ªº¥y¤l¡G¥Î index ¥Nªí¤w¥´¹ïªº¦r¼Æ
-        // index ¬O§A²{¦b¥y¤lªº¶i«×¡]0 ~ currentSentence.Length¡^
         doneChars += Mathf.Clamp(index, 0, currentSentence != null ? currentSentence.Length : 0);
 
-        // ³Ñ¾l¤ñ¨Ò = 1 - §¹¦¨¤ñ¨Ò
         float doneRatio = (float)doneChars / totalChars;
         return Mathf.Clamp01(1f - doneRatio);
     }
@@ -67,11 +76,23 @@ public class TypingGame : MonoBehaviour
     {
         if (!isTyping) return;
 
-        foreach (char c in Input.inputString)
+        foreach (char inputChar in Input.inputString)
         {
+            // è¼¸å…¥çš„ASCIIç¢¼
+            Debug.Log($"[è¼¸å…¥åµæ¸¬] å­—å…ƒ: '{(inputChar == '\r' ? "\\r" : inputChar == '\n' ? "\\n" : inputChar.ToString())}' | ASCII: {(int)inputChar}");
+
             if (index >= currentSentence.Length) return;
 
-            if (c == currentSentence[index])
+            char targetChar = currentSentence[index];
+            char playerChar = inputChar;
+
+            // å°‡ Enter éµçµ±ä¸€è¦–ç‚º \n
+            if (playerChar == '\r' || playerChar == '\n')
+            {
+                playerChar = '\n';
+            }
+
+            if (playerChar == targetChar)
             {
                 index++;
                 UpdateTextColor();
@@ -81,6 +102,11 @@ public class TypingGame : MonoBehaviour
                     isTyping = false;
                     OnSentenceComplete();
                 }
+            }
+            else
+            {
+                // åŠ ç¢¼ï¼šå¦‚æœä½ æŒ‰éŒ¯äº†ï¼Œå‘Šè¨´ä½ éŒ¯åœ¨å“ª
+                // Debug.Log($"[æ‰“éŒ¯äº†] ç³»çµ±åœ¨ç­‰ ASCII:{(int)targetChar} ('{targetChar}')");
             }
         }
     }
@@ -96,7 +122,6 @@ public class TypingGame : MonoBehaviour
     void OnSentenceComplete()
     {
         Debug.Log("Finished one sentence.");
-
         sentenceIndex++;
 
         if (sentenceIndex < sentences.Length)
@@ -106,6 +131,17 @@ public class TypingGame : MonoBehaviour
         else
         {
             Debug.Log("All sentences completed!");
+            targetText.text = "å·¥ä½œå®Œæˆï¼";
+            
+            // é€šçŸ¥ WorkManager æ¸›å°‘å‰©é¤˜å·¥ä½œ
+            if (WorkManager.Instance != null)
+            {
+                WorkManager.Instance.CompleteJob();
+            }
+            else
+            {
+                Debug.LogWarning("âš ï¸ WorkManager.Instance ç‚º nullï¼Œç„¡æ³•æ¸›å°‘å‰©é¤˜å·¥ä½œæ•¸é‡");
+            }
         }
     }
 }

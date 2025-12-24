@@ -104,5 +104,6 @@ public class GameManager_fish : MonoBehaviour
     {
         if (resultScoreText != null)
             resultScoreText.text = "Final Score: " + currentScore;
+            
     }
 }
