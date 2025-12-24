@@ -17,6 +17,7 @@ namespace StarterAssets
         [Header("Freeze Check")]
         public Transform cameraTransform;
 
+
         private StarterAssetsInputs _input;
         private Light playerLight;
 
@@ -39,12 +40,6 @@ namespace StarterAssets
         {
             _input = GetComponent<StarterAssetsInputs>();
             playerLight = GetComponentInChildren<Light>();
-
-            // 如果沒在 Inspector 拉攝影機，自動抓 MainCamera
-            if (cameraTransform == null && Camera.main != null)
-            {
-                cameraTransform = Camera.main.transform;
-            }
 
             currentIndex = 0;
             direction = 1;
@@ -103,45 +98,17 @@ namespace StarterAssets
                 return;
             }
 
-            // --- 移動邏輯修正開始 ---
+            // 移動
             Transform target = patrolPoints[currentIndex];
-            Vector3 worldDir = target.position - transform.position;
-            worldDir.y = 0f;
-            worldDir.Normalize(); // 取得標準化的世界方向
+            Vector3 dir = target.position - transform.position;
+            dir.y = 0f;
 
-            // 核心修正：將「世界方向」轉換為「相對於攝影機的方向」
-            // 這樣當 ThirdPersonController 再次加上攝影機角度時，就會剛好抵銷
-            Vector2 finalInput = Vector2.zero;
+            _input.move = new Vector2(dir.normalized.x, dir.normalized.z);
 
-            if (cameraTransform != null)
-            {
-                // 1. 取得世界方向的角度
-                float targetAngle = Mathf.Atan2(worldDir.x, worldDir.z) * Mathf.Rad2Deg;
-                // 2. 扣掉攝影機目前的角度
-                float relativeAngle = targetAngle - cameraTransform.eulerAngles.y;
-                // 3. 轉回 Vector2 輸入 (Sin, Cos)
-                // 注意：Mathf.Sin/Cos 吃的是弧度 (Rad)
-                float rad = relativeAngle * Mathf.Deg2Rad;
-                finalInput = new Vector2(Mathf.Sin(rad), Mathf.Cos(rad));
-            }
-            else
-            {
-                // 如果沒有攝影機，就直接用世界座標
-                finalInput = new Vector2(worldDir.x, worldDir.z);
-            }
-
-            // 寫入 Input
-            _input.move = finalInput;
-
-            // 判斷到達距離 (用未修正的原始距離)
-            float dist = Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), 
-                                          new Vector3(target.position.x, 0, target.position.z));
-            
-            if (dist < 0.25f)
+            if (dir.magnitude < 0.25f)
             {
                 HandleArriveAtPoint();
             }
-            // --- 移動邏輯修正結束 ---
         }
 
         void HandleArriveAtPoint()
@@ -153,7 +120,7 @@ namespace StarterAssets
                 isWaitingAtD = true;
                 waitTimer = waitTimeAtD;
 
-                // 檢查攝影機角度並凍結
+                // 新增：檢查攝影機角度並凍結
                 if (cameraTransform != null)
                 {
                     float camY = cameraTransform.eulerAngles.y;
@@ -203,18 +170,6 @@ namespace StarterAssets
         public bool IsOnPatrol()
         {
             return isOnPatrol;
-        }
-
-        public bool IsWaitingAtPointD()
-        {
-            if (!isOnPatrol || isReturning) return false;
-            if (patrolPoints == null || patrolPoints.Length == 0) return false;
-            return currentIndex == patrolPoints.Length - 1 && isWaitingAtD;
-        }
-
-        public int GetCurrentPatrolIndex()
-        {
-            return currentIndex;
         }
     }
 }
