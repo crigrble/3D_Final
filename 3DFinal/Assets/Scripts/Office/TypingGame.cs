@@ -74,6 +74,21 @@ public class TypingGame : MonoBehaviour
 
     void Update()
     {
+        // 快速完成熱鍵：按下 ALT 鍵時，完成當前句子並減少 remainingJobs
+        if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
+        {
+            if (isTyping && currentSentence != null && index < currentSentence.Length)
+            {
+                Debug.Log("[TypingGame] ⚡ ALT 鍵被按下，快速完成當前句子");
+                // 直接完成當前句子
+                index = currentSentence.Length;
+                UpdateTextColor();
+                isTyping = false;
+                OnSentenceComplete();
+                return;
+            }
+        }
+
         if (!isTyping) return;
 
         foreach (char inputChar in Input.inputString)
@@ -121,27 +136,34 @@ public class TypingGame : MonoBehaviour
 
     void OnSentenceComplete()
     {
-        Debug.Log("Finished one sentence.");
+        Debug.Log($"[TypingGame] OnSentenceComplete() 被調用，當前 sentenceIndex={sentenceIndex}，sentences.Length={sentences.Length}");
         sentenceIndex++;
+        Debug.Log($"[TypingGame] sentenceIndex 已遞增為 {sentenceIndex}");
+
+        // 每完成一個句子（切換句子），就減少一次 remaining jobs
+        Debug.Log($"[TypingGame] ✅ 完成一個句子，準備通知 WorkManager 減少剩餘工作");
+        Debug.Log($"[TypingGame] WorkManager.Instance 是否為 null：{WorkManager.Instance == null}");
+        
+        if (WorkManager.Instance != null)
+        {
+            Debug.Log("[TypingGame] ✅ WorkManager.Instance 存在，調用 CompleteJob()");
+            WorkManager.Instance.CompleteJob();
+        }
+        else
+        {
+            Debug.LogError("[TypingGame] ⚠️ WorkManager.Instance 為 null！請確認場景中有 WorkManager 組件");
+            Debug.LogError("[TypingGame] 提示：請在場景中添加一個 GameObject，並添加 WorkManager 組件");
+        }
 
         if (sentenceIndex < sentences.Length)
         {
+            Debug.Log($"[TypingGame] 還有更多句子，開始下一個句子");
             StartTyping(sentences[sentenceIndex]);
         }
         else
         {
-            Debug.Log("All sentences completed!");
+            Debug.Log($"[TypingGame] ✅ All sentences completed! sentenceIndex={sentenceIndex}, sentences.Length={sentences.Length}");
             targetText.text = "工作完成！";
-            
-            // 通知 WorkManager 減少剩餘工作
-            if (WorkManager.Instance != null)
-            {
-                WorkManager.Instance.CompleteJob();
-            }
-            else
-            {
-                Debug.LogWarning("⚠️ WorkManager.Instance 為 null，無法減少剩餘工作數量");
-            }
         }
     }
 }

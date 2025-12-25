@@ -47,10 +47,28 @@ namespace StarterAssets
 
         void Start()
         {
+            // 強制輸出，確保腳本有運行
+            Debug.Log("[GameOver] ⚡ Start() 被調用！腳本已初始化");
+            
+            if (enableDebug)
+                Debug.Log("[GameOver] 調試模式已啟用");
+
+            // 檢查引用
+            if (enableDebug)
+            {
+                Debug.Log($"[GameOver] 引用檢查：patrol={patrol != null}, mainCamera={mainCamera != null}, gameOverUI={gameOverUI != null}");
+            }
+
             // 初始化時隱藏遊戲結束UI
             if (gameOverUI != null)
             {
                 gameOverUI.SetActive(false);
+                if (enableDebug)
+                    Debug.Log("[GameOver] ✅ gameOverUI 已隱藏（初始化）");
+            }
+            else if (enableDebug)
+            {
+                Debug.LogError("[GameOver] ❌ gameOverUI 未設定！請在 Inspector 中指定 gameOverUI。");
             }
         }
 
@@ -122,17 +140,12 @@ namespace StarterAssets
                 float cameraAngle = NormalizeSignedAngle(mainCamera.eulerAngles.y); // -180~180
                 bool isAngleValid = (cameraAngle >= minAngle && cameraAngle <= maxAngle); // [-30, 0]
 
-                if (enableDebug)
-                {
-                    Debug.Log($"[GameOver] ✅ BOSS 到達點D！相機角度: {cameraAngle:F1}° (允許範圍: [{minAngle}, {maxAngle}]°), 有效: {isAngleValid}");
-                }
+                // 強制輸出，確保能看到檢查過程
+                Debug.Log($"[GameOver] ✅ BOSS 到達點D！相機角度: {cameraAngle:F1}° (允許範圍: [{minAngle}, {maxAngle}]°), 有效: {isAngleValid}, isGameOver={isGameOver}");
 
                 if (!isAngleValid)
                 {
-                    if (enableDebug)
-                    {
-                        Debug.LogWarning($"[GameOver] ⚠️ 觸發遊戲失敗：相機角度 {cameraAngle:F1}° 不在工作範圍內！");
-                    }
+                    Debug.LogWarning($"[GameOver] ⚠️ 觸發遊戲失敗：相機角度 {cameraAngle:F1}° 不在工作範圍內！");
                     Lose(cameraAngle, "BOSS 到達點D時，玩家攝影機角度不在工作範圍內（摸魚被發現）");
                 }
                 else
@@ -197,7 +210,86 @@ namespace StarterAssets
             // 顯示遊戲結束UI
             if (gameOverUI != null)
             {
+                // 詳細檢查 gameOverUI 的狀態
+                if (enableDebug)
+                {
+                    Debug.Log($"[GameOver] 🔍 檢查 gameOverUI 狀態：");
+                    Debug.Log($"[GameOver]   - gameOverUI.activeSelf = {gameOverUI.activeSelf}");
+                    Debug.Log($"[GameOver]   - gameOverUI.activeInHierarchy = {gameOverUI.activeInHierarchy}");
+                    
+                    // 檢查父對象
+                    Transform parent = gameOverUI.transform.parent;
+                    if (parent != null)
+                    {
+                        Debug.Log($"[GameOver]   - 父對象名稱：{parent.name}");
+                        Debug.Log($"[GameOver]   - 父對象 activeSelf = {parent.gameObject.activeSelf}");
+                        Debug.Log($"[GameOver]   - 父對象 activeInHierarchy = {parent.gameObject.activeInHierarchy}");
+                    }
+                    else
+                    {
+                        Debug.Log($"[GameOver]   - 沒有父對象（根對象）");
+                    }
+                    
+                    // 檢查 Canvas
+                    Canvas canvas = gameOverUI.GetComponentInParent<Canvas>();
+                    if (canvas != null)
+                    {
+                        Debug.Log($"[GameOver]   - Canvas 名稱：{canvas.name}");
+                        Debug.Log($"[GameOver]   - Canvas activeSelf = {canvas.gameObject.activeSelf}");
+                        Debug.Log($"[GameOver]   - Canvas activeInHierarchy = {canvas.gameObject.activeInHierarchy}");
+                        Debug.Log($"[GameOver]   - Canvas Sorting Order = {canvas.sortingOrder}");
+                        Debug.Log($"[GameOver]   - Canvas Render Mode = {canvas.renderMode}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[GameOver]   - ⚠️ 未找到 Canvas 組件！");
+                    }
+                }
+                
+                // 確保父對象和 Canvas 都被激活
+                Transform parentTransform = gameOverUI.transform.parent;
+                if (parentTransform != null && !parentTransform.gameObject.activeSelf)
+                {
+                    Debug.LogWarning($"[GameOver] ⚠️ 父對象 {parentTransform.name} 被禁用，正在激活...");
+                    parentTransform.gameObject.SetActive(true);
+                }
+                
+                Canvas parentCanvas = gameOverUI.GetComponentInParent<Canvas>();
+                if (parentCanvas != null && !parentCanvas.gameObject.activeSelf)
+                {
+                    Debug.LogWarning($"[GameOver] ⚠️ Canvas {parentCanvas.name} 被禁用，正在激活...");
+                    parentCanvas.gameObject.SetActive(true);
+                }
+                
+                // 激活 gameOverUI
                 gameOverUI.SetActive(true);
+                
+                if (enableDebug)
+                {
+                    Debug.Log($"[GameOver] ✅ gameOverUI.SetActive(true) 已調用");
+                    Debug.Log($"[GameOver]   - 激活後 activeSelf = {gameOverUI.activeSelf}");
+                    Debug.Log($"[GameOver]   - 激活後 activeInHierarchy = {gameOverUI.activeInHierarchy}");
+                }
+                
+                // 如果 gameOverUI 有 ResultPanelController，調用其 Show() 方法（處理鼠標顯示等）
+                var resultPanel = gameOverUI.GetComponent<ResultPanelController>();
+                if (resultPanel != null)
+                {
+                    resultPanel.Show();
+                    if (enableDebug)
+                        Debug.Log("[GameOver] ✅ 找到 ResultPanelController，已調用 Show()");
+                }
+                else
+                {
+                    // 如果沒有 ResultPanelController，手動顯示鼠標
+                    Cursor.lockState = CursorLockMode.None;
+                    Cursor.visible = true;
+                    if (enableDebug)
+                        Debug.Log("[GameOver] ⚠️ 未找到 ResultPanelController，手動顯示鼠標");
+                }
+                
+                if (enableDebug)
+                    Debug.Log("[GameOver] ✅ GameOver UI 已顯示");
             }
             else
             {
@@ -279,6 +371,46 @@ namespace StarterAssets
         public bool IsGameOver()
         {
             return isGameOver;
+        }
+        
+        /// <summary>
+        /// 重置遊戲狀態（用於重新開始遊戲，不重新載入場景）
+        /// </summary>
+        public void ResetGameState()
+        {
+            if (enableDebug)
+                Debug.Log("[GameOver] 🔄 開始重置遊戲狀態...");
+            
+            isGameOver = false;
+            hasCheckedAtD = false;
+            
+            // 隱藏 UI
+            if (gameOverUI != null)
+            {
+                gameOverUI.SetActive(false);
+                if (enableDebug)
+                    Debug.Log("[GameOver] ✅ gameOverUI 已隱藏");
+            }
+            
+            // 確保重新查找引用（以防引用丟失）
+            if (patrol == null)
+            {
+                patrol = FindObjectOfType<PatrolController>();
+            }
+            
+            if (mainCamera == null)
+            {
+                if (Camera.main != null)
+                {
+                    mainCamera = Camera.main.transform;
+                }
+            }
+            
+            if (enableDebug)
+            {
+                Debug.Log("[GameOver] ✅ 遊戲狀態已重置：isGameOver = false, hasCheckedAtD = false");
+                Debug.Log($"[GameOver] 引用檢查：patrol={patrol != null}, mainCamera={mainCamera != null}");
+            }
         }
 
         static float NormalizeSignedAngle(float angleDeg)

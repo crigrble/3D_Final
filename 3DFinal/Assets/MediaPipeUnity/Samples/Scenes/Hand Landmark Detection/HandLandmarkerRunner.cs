@@ -15,8 +15,8 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
   {
     [SerializeField] private HandLandmarkerResultAnnotationController _handLandmarkerResultAnnotationController;
     [Header("Hand Model Driver (optional)")]
-    [SerializeField] private int driveHandIndex = 0; // 0=²Ä¤@°¦¤â
-    [SerializeField] private HandCollisionDetector handDriver; // ©ì§Aªº HandCollisionDetector ª«¥ó¶i¨Ó
+    [SerializeField] private int driveHandIndex = 0; // 0=ï¿½Ä¤@ï¿½ï¿½ï¿½ï¿½
+    [SerializeField] private HandCollisionDetector handDriver; // ï¿½ï¿½Aï¿½ï¿½ HandCollisionDetector ï¿½ï¿½ï¿½ï¿½iï¿½ï¿½
 
     private Experimental.TextureFramePool _textureFramePool;
 
@@ -182,17 +182,17 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
             // Push landmarks to HandCollisionDetector (thread-safe buffer inside it)
             if (handDriver != null && result.handLandmarks != null && result.handLandmarks.Count > driveHandIndex)
             {
-                // ¥u¶Ç²Ä¤@°¦¤âªº 21 ÂI
+                // ï¿½uï¿½Ç²Ä¤@ï¿½ï¿½ï¿½âªº 21 ï¿½I
                 handDriver.CheckHandCollision(result.handLandmarks[driveHandIndex]);
             }
 
 
-            // ¨C 10 ¦¸¦L¤@¦¸¡AÁ×§K¬~ª©
+            // ï¿½C 10 ï¿½ï¿½ï¿½Lï¿½@ï¿½ï¿½ï¿½Aï¿½×§Kï¿½~ï¿½ï¿½
             _dbgFrameSkip++;
             if (_dbgFrameSkip % 10 == 0)
             {
-                // ¤£¦Pª©¥» result Äæ¦ì©R¦W¥i¯à¤£¦P¡A¦ı³o­ÓÀÉ®×¥Îªº¬O Tasks.Vision.HandLandmarker
-                // ±`¨£¡Gresult.handLandmarks / result.handWorldLandmarks / result.handedness
+                // ï¿½ï¿½ï¿½Pï¿½ï¿½ï¿½ï¿½ result ï¿½ï¿½ï¿½Rï¿½Wï¿½iï¿½à¤£ï¿½Pï¿½Aï¿½ï¿½ï¿½oï¿½ï¿½ï¿½É®×¥Îªï¿½ï¿½O Tasks.Vision.HandLandmarker
+                // ï¿½`ï¿½ï¿½ï¿½Gresult.handLandmarks / result.handWorldLandmarks / result.handedness
                 try
                 {
                     int handCount = result.handLandmarks != null ? result.handLandmarks.Count : 0;
@@ -201,11 +201,11 @@ namespace Mediapipe.Unity.Sample.HandLandmarkDetection
                     lm0 = handCount > 0 ? result.handLandmarks[0].landmarks.Count : 0;
 
 
-                    Debug.Log($"[HandResult] t={timestamp} hands={handCount} lm0={lm0}");
+                    // Debug.Log($"[HandResult] t={timestamp} hands={handCount} lm0={lm0}"); // èª¿è©¦ä¿¡æ¯å·²é—œé–‰
                 }
                 catch (System.Exception e)
                 {
-                    Debug.LogWarning($"[HandResult] received but cannot read fields: {e.Message}");
+                    // Debug.LogWarning($"[HandResult] received but cannot read fields: {e.Message}"); // èª¿è©¦ä¿¡æ¯å·²é—œé–‰
                 }
             }
 

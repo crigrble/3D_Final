@@ -24,8 +24,13 @@ public class WorkManager : MonoBehaviour
 
     private void Awake()
     {
+        if (enableDebug)
+            Debug.Log($"[WorkManager] Awake() 被調用，gameObject.name={gameObject.name}");
+        
         if (Instance != null && Instance != this)
         {
+            if (enableDebug)
+                Debug.LogWarning($"[WorkManager] 發現重複的 Instance，銷毀 {gameObject.name}");
             Destroy(gameObject);
             return;
         }
@@ -33,12 +38,21 @@ public class WorkManager : MonoBehaviour
         Instance = this;
         // 保存初始值，用於重置功能
         initialJobs = remainingJobs;
+        
+        if (enableDebug)
+            Debug.Log($"[WorkManager] ✅ Instance 已設置，remainingJobs={remainingJobs}, initialJobs={initialJobs}");
     }
 
     private void Start()
     {
+        if (enableDebug)
+            Debug.Log($"[WorkManager] Start() 被調用，remainingJobs={remainingJobs}");
+        
         AutoBindUI();
         UpdateUI();
+        
+        if (enableDebug)
+            Debug.Log($"[WorkManager] 初始化完成，remainingJobsText 是否為 null：{remainingJobsText == null}");
     }
 
     private void AutoBindUI()
@@ -48,11 +62,20 @@ public class WorkManager : MonoBehaviour
         if (jobsObj != null)
         {
             remainingJobsText = jobsObj.GetComponent<TextMeshProUGUI>();
-            if (enableDebug) Debug.Log("✅ RemainingJobsUI 已自動綁定");
+            if (remainingJobsText != null)
+            {
+                if (enableDebug) 
+                    Debug.Log($"✅ RemainingJobsUI 已自動綁定：{jobsObj.name}，當前文字：{remainingJobsText.text}");
+            }
+            else
+            {
+                if (enableDebug)
+                    Debug.LogError($"⚠️ 找到 Tag=RemainingJobsUI 的物件 {jobsObj.name}，但沒有 TextMeshProUGUI 組件！");
+            }
         }
         else if (enableDebug)
         {
-            Debug.LogWarning("⚠️ 未找到 Tag=RemainingJobsUI 的物件");
+            Debug.LogWarning("⚠️ 未找到 Tag=RemainingJobsUI 的物件！請確認 UI 物件有設定正確的 Tag");
         }
     }
 
@@ -61,14 +84,23 @@ public class WorkManager : MonoBehaviour
     /// </summary>
     public void CompleteJob()
     {
+        if (enableDebug)
+            Debug.Log($"[WorkManager] CompleteJob() 被調用，當前剩餘工作：{remainingJobs}");
+
         if (remainingJobs > 0)
         {
             remainingJobs--;
+            
+            if (enableDebug)
+                Debug.Log($"[WorkManager] ✅ 工作完成！剩餘工作：{remainingJobs}，remainingJobsText 是否為 null：{remainingJobsText == null}");
+            
             UpdateUI();
             OnJobsChanged?.Invoke(remainingJobs);
-
+        }
+        else
+        {
             if (enableDebug)
-                Debug.Log($"✅ 工作完成！剩餘工作：{remainingJobs}");
+                Debug.LogWarning($"[WorkManager] ⚠️ 剩餘工作已為 0，無法再減少");
         }
     }
 
@@ -108,7 +140,16 @@ public class WorkManager : MonoBehaviour
     {
         if (remainingJobsText != null)
         {
-            remainingJobsText.text = "remain jobs : " + remainingJobs;
+            string newText = "remain jobs : " + remainingJobs;
+            remainingJobsText.text = newText;
+            
+            if (enableDebug)
+                Debug.Log($"[WorkManager] UI 已更新：{newText}");
+        }
+        else
+        {
+            if (enableDebug)
+                Debug.LogWarning($"[WorkManager] ⚠️ remainingJobsText 為 null，無法更新 UI！剩餘工作：{remainingJobs}");
         }
     }
 }
