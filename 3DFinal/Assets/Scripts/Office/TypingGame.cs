@@ -5,6 +5,11 @@ public class TypingGame : MonoBehaviour
 {
     public TextMeshProUGUI targetText;
 
+    [Header("Audio Settings")]
+    public AudioSource audioSource; // 這裡拉入 AudioSource 組件
+    public AudioClip typingSound;   // 這裡放入你想播放的打字音效
+    public AudioClip sentenceCompleteSound; // 完成句子的音效
+
     [TextArea]
     public string[] sentences;
     private int sentenceIndex = 0;
@@ -18,6 +23,12 @@ public class TypingGame : MonoBehaviour
         if (targetText != null)
         {
             targetText.enableWordWrapping = true;
+        }
+
+        // 如果沒有手動指派 AudioSource，嘗試自動抓取
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
         }
 
         if (sentences.Length > 0)
@@ -35,15 +46,6 @@ public class TypingGame : MonoBehaviour
         index = 0;
         isTyping = true;
         targetText.text = currentSentence;
-
-        // Debug: 印出題目中每個字的編碼
-        // string debugCodes = "";
-        // foreach (char c in currentSentence)
-        // {
-        //     if (c == '\n') debugCodes += "[Enter/10]";
-        //     else debugCodes += $"{(int)c}|";
-        // }
-        // Debug.Log($"[題目載入] 編碼檢查: {debugCodes}");
     }
 
     public float GetRemainingWorkRatio()
@@ -94,7 +96,7 @@ public class TypingGame : MonoBehaviour
         foreach (char inputChar in Input.inputString)
         {
             // 輸入的ASCII碼
-            Debug.Log($"[輸入偵測] 字元: '{(inputChar == '\r' ? "\\r" : inputChar == '\n' ? "\\n" : inputChar.ToString())}' | ASCII: {(int)inputChar}");
+            // Debug.Log($"[輸入偵測] 字元: '{(inputChar == '\r' ? "\\r" : inputChar == '\n' ? "\\n" : inputChar.ToString())}' | ASCII: {(int)inputChar}");
 
             if (index >= currentSentence.Length) return;
 
@@ -109,6 +111,16 @@ public class TypingGame : MonoBehaviour
 
             if (playerChar == targetChar)
             {
+                // --- 播放音效區塊 ---
+                if (audioSource != null && typingSound != null)
+                {
+                    // (選用) 隨機微調音高，讓連續打字聽起來更自然，不喜歡可註解掉
+                    audioSource.pitch = Random.Range(0.9f, 1.1f);
+                    
+                    audioSource.PlayOneShot(typingSound);
+                }
+                // ------------------
+
                 index++;
                 UpdateTextColor();
 
@@ -136,13 +148,20 @@ public class TypingGame : MonoBehaviour
 
     void OnSentenceComplete()
     {
+        // --- 播放完成音效 ---
+        if (audioSource != null && sentenceCompleteSound != null)
+        {
+            // 確保音高重置回 1 (以免受到打字音效隨機音高影響)
+            audioSource.pitch = 1.0f;
+            audioSource.PlayOneShot(sentenceCompleteSound);
+        }
+        // ------------------
+
         Debug.Log($"[TypingGame] OnSentenceComplete() 被調用，當前 sentenceIndex={sentenceIndex}，sentences.Length={sentences.Length}");
         sentenceIndex++;
         Debug.Log($"[TypingGame] sentenceIndex 已遞增為 {sentenceIndex}");
 
         // 每完成一個句子（切換句子），就減少一次 remaining jobs
-        Debug.Log($"[TypingGame] ✅ 完成一個句子，準備通知 WorkManager 減少剩餘工作");
-        Debug.Log($"[TypingGame] WorkManager.Instance 是否為 null：{WorkManager.Instance == null}");
         
         if (WorkManager.Instance != null)
         {
@@ -152,7 +171,6 @@ public class TypingGame : MonoBehaviour
         else
         {
             Debug.LogError("[TypingGame] ⚠️ WorkManager.Instance 為 null！請確認場景中有 WorkManager 組件");
-            Debug.LogError("[TypingGame] 提示：請在場景中添加一個 GameObject，並添加 WorkManager 組件");
         }
 
         if (sentenceIndex < sentences.Length)
@@ -162,7 +180,7 @@ public class TypingGame : MonoBehaviour
         }
         else
         {
-            Debug.Log($"[TypingGame] ✅ All sentences completed! sentenceIndex={sentenceIndex}, sentences.Length={sentences.Length}");
+            Debug.Log($"[TypingGame] ✅ All sentences completed!");
             targetText.text = "工作完成！";
         }
     }
